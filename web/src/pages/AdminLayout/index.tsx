@@ -2,7 +2,7 @@ import { type JSX, useEffect, useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import type { MenuProps } from 'antd';
 import { App, Avatar, Button, Dropdown, Space } from 'antd';
-import { Eye, Key, LogOut, Server, User as UserIcon, Users, BookOpen, Settings } from 'lucide-react';
+import { Eye, Key, LogOut, Server, User as UserIcon, Users, BookOpen, Settings, Activity } from 'lucide-react';
 import { logout } from '../../api/auth';
 import { getServerVersion } from '../../api/agent';
 import type { User } from '../../types';
@@ -41,6 +41,12 @@ const AdminLayout = () => {
                 icon: <Key className="h-4 w-4" strokeWidth={2} />,
             },
             {
+                key: 'monitors',
+                label: '服务监控',
+                path: '/admin/monitors',
+                icon: <Activity className="h-4 w-4" strokeWidth={2} />,
+            },
+            {
                 key: 'users',
                 label: '用户管理',
                 path: '/admin/users',
@@ -72,6 +78,8 @@ const AdminLayout = () => {
             setSelectedKey('users');
         } else if (path.startsWith('/admin/api-keys')) {
             setSelectedKey('api-keys');
+        } else if (path.startsWith('/admin/monitors')) {
+            setSelectedKey('monitors');
         } else if (path.startsWith('/admin/settings')) {
             setSelectedKey('settings');
         } else {
@@ -151,7 +159,7 @@ const AdminLayout = () => {
                             type="text"
                             icon={<BookOpen className="h-4 w-4" strokeWidth={2} />}
                             onClick={() => navigate('/admin/agents-install')}
-                            className="!h-9 !items-center !rounded-full !px-3 !text-xs !text-white hover:!bg-indigo-500/10"
+                            className="!h-9 !items-center !rounded-full !px-3 !text-xs !text-white hover:!bg-blue-500/10"
                         >
                             部署指南
                         </Button>
@@ -200,20 +208,20 @@ const AdminLayout = () => {
                                         className={cn(
                                             'group relative flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-sm transition-all cursor-pointer',
                                             isActive
-                                                ? 'bg-gradient-to-r from-indigo-500/10 to-indigo-500/5 text-indigo-600 shadow-sm'
+                                                ? 'bg-gradient-to-r from-blue-500/10 to-blue-500/5 text-blue-600 shadow-sm'
                                                 : 'text-gray-600 hover:bg-gray-100'
                                         )}
                                     >
                                         <span
                                             className={cn(
                                                 'flex h-8 w-8 items-center justify-center rounded-xl bg-white text-gray-500 shadow-sm',
-                                                isActive && 'bg-indigo-600 text-white'
+                                                isActive && 'bg-blue-600 text-white'
                                             )}
                                         >
                                             {item.icon}
                                         </span>
                                         <span className="truncate font-medium">{item.label}</span>
-                                        {isActive && <span className="ml-auto text-[10px] uppercase text-indigo-500">当前</span>}
+                                        {isActive && <span className="ml-auto text-[10px] uppercase text-blue-500">当前</span>}
                                     </button>
                                 );
                             })}
@@ -249,7 +257,7 @@ const AdminLayout = () => {
 
             {/* 移动端底部导航栏 */}
             <nav className="fixed bottom-0 left-0 right-0 z-[300] border-t border-gray-200 bg-white/95 backdrop-blur lg:hidden">
-                <div className="grid h-16 grid-cols-4">
+                <div className="grid h-16 grid-cols-5">
                     {menuItems.map((item) => {
                         const isActive = item.key === selectedKey;
                         return (
@@ -259,10 +267,10 @@ const AdminLayout = () => {
                                 onClick={() => handleNavigate(item)}
                                 className={cn(
                                     'flex flex-col items-center justify-center gap-1 text-xs font-medium',
-                                    isActive ? 'text-indigo-600' : 'text-gray-500'
+                                    isActive ? 'text-blue-600' : 'text-gray-500'
                                 )}
                             >
-                                <span className={cn('rounded-full p-2', isActive ? 'bg-indigo-50 text-indigo-600' : 'text-current')}>
+                                <span className={cn('rounded-full p-2', isActive ? 'bg-blue-50 text-blue-600' : 'text-current')}>
                                     {item.icon}
                                 </span>
                                 <span>{item.label}</span>

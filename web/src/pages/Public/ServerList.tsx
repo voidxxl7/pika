@@ -1,10 +1,11 @@
 import {type ReactNode, useState} from 'react';
 import {useNavigate} from 'react-router-dom';
 import {useQuery} from '@tanstack/react-query';
-import {Cpu, EthernetPortIcon, HardDrive, LayoutGrid, List, Loader2, LogIn, MemoryStick, Network} from 'lucide-react';
+import {Cpu, EthernetPortIcon, HardDrive, Loader2, MemoryStick, Network} from 'lucide-react';
 import {listAgents} from '../../api/agent';
 import type {Agent, LatestMetrics} from '../../types';
-import GithubSvg from "../../assets/github.svg"
+import PublicHeader from '../../components/PublicHeader';
+import PublicFooter from '../../components/PublicFooter';
 
 interface AgentWithMetrics extends Agent {
     metrics?: LatestMetrics;
@@ -164,7 +165,7 @@ const ServerList = () => {
                                 handleNavigate(agent.id);
                             }
                         }}
-                        className="group relative flex h-full cursor-pointer flex-col gap-5 rounded-2xl border border-slate-200 bg-white p-5 transition duration-200 hover:border-indigo-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+                        className="group relative flex h-full cursor-pointer flex-col gap-5 rounded-2xl border border-slate-200 bg-white p-5 transition duration-200 hover:border-blue-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
                     >
                         <div className="flex flex-1 flex-col gap-4">
                             <div className="flex flex-col gap-2">
@@ -180,7 +181,7 @@ const ServerList = () => {
                                         </span>
                                     </div>
                                     <span
-                                        className="inline-flex items-center gap-1 rounded-lg bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700">
+                                        className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
                                         {agent.os} · {agent.arch}
                                     </span>
                                 </div>
@@ -214,7 +215,7 @@ const ServerList = () => {
                                     className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50/50 p-3">
                                     <div className="flex items-center gap-2">
                                         <div
-                                            className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
+                                            className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
                                             <Cpu className="h-3.5 w-3.5"/>
                                         </div>
                                         <span className="text-xs font-medium text-slate-600">CPU</span>
@@ -229,7 +230,7 @@ const ServerList = () => {
                                     className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50/50 p-3">
                                     <div className="flex items-center gap-2">
                                         <div
-                                            className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
+                                            className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
                                             <MemoryStick className="h-3.5 w-3.5"/>
                                         </div>
                                         <span className="text-xs font-medium text-slate-600">内存</span>
@@ -244,7 +245,7 @@ const ServerList = () => {
                                     className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50/50 p-3">
                                     <div className="flex items-center gap-2">
                                         <div
-                                            className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
+                                            className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
                                             <HardDrive className="h-3.5 w-3.5"/>
                                         </div>
                                         <span className="text-xs font-medium text-slate-600">磁盘</span>
@@ -261,7 +262,7 @@ const ServerList = () => {
                                     className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
                                     <div className="flex items-center gap-2">
                                         <div
-                                            className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
+                                            className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
                                             <Network className="h-3.5 w-3.5"/>
                                         </div>
                                         <span className="text-xs font-medium text-slate-600">实时速率</span>
@@ -281,7 +282,7 @@ const ServerList = () => {
                                     className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
                                     <div className="flex items-center gap-2">
                                         <div
-                                            className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
+                                            className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
                                             <EthernetPortIcon className="h-3.5 w-3.5"/>
                                         </div>
                                         <span className="text-xs font-medium text-slate-600">累计流量</span>
@@ -339,7 +340,7 @@ const ServerList = () => {
                                     handleNavigate(agent.id);
                                 }
                             }}
-                            className="cursor-pointer rounded-xl border border-slate-200 bg-white p-4 transition hover:border-indigo-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+                            className="cursor-pointer rounded-xl border border-slate-200 bg-white p-4 transition hover:border-blue-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
                         >
                             {/* 服务器信息 */}
                             <div className="mb-4 flex flex-col gap-2">
@@ -353,7 +354,7 @@ const ServerList = () => {
                                             在线
                                         </span>
                                     </div>
-                                    <span className="inline-flex items-center gap-1 rounded-lg bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700">
+                                    <span className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
                                         {agent.os} · {agent.arch}
                                     </span>
                                 </div>
@@ -381,7 +382,7 @@ const ServerList = () => {
                                 {/* CPU */}
                                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                                     <div className="mb-2 flex items-center gap-2">
-                                        <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
+                                        <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
                                             <Cpu className="h-3.5 w-3.5"/>
                                         </div>
                                         <span className="text-xs font-semibold text-slate-700">CPU</span>
@@ -399,7 +400,7 @@ const ServerList = () => {
                                 {/* 内存 */}
                                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                                     <div className="mb-2 flex items-center gap-2">
-                                        <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
+                                        <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
                                             <MemoryStick className="h-3.5 w-3.5"/>
                                         </div>
                                         <span className="text-xs font-semibold text-slate-700">内存</span>
@@ -417,7 +418,7 @@ const ServerList = () => {
                                 {/* 磁盘 */}
                                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                                     <div className="mb-2 flex items-center gap-2">
-                                        <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
+                                        <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
                                             <HardDrive className="h-3.5 w-3.5"/>
                                         </div>
                                         <span className="text-xs font-semibold text-slate-700">磁盘</span>
@@ -435,7 +436,7 @@ const ServerList = () => {
                                 {/* 网络 */}
                                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                                     <div className="mb-2 flex items-center gap-2">
-                                        <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
+                                        <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
                                             <Network className="h-3.5 w-3.5"/>
                                         </div>
                                         <span className="text-xs font-semibold text-slate-700">网络速率</span>
@@ -454,8 +455,8 @@ const ServerList = () => {
             {/* 桌面端：使用表格布局 */}
             <div className="hidden overflow-hidden rounded-xl border border-slate-200 bg-white lg:block">
                 <table className="min-w-full divide-y divide-slate-200 text-sm">
-                    <thead className="bg-indigo-50">
-                    <tr className="text-left text-xs font-semibold uppercase tracking-wide text-indigo-600">
+                    <thead className="bg-blue-50">
+                    <tr className="text-left text-xs font-semibold uppercase tracking-wide text-blue-600">
                         <th className="px-5 py-3">服务器</th>
                         <th className="px-5 py-3">系统</th>
                         <th className="px-5 py-3">CPU</th>
@@ -494,7 +495,7 @@ const ServerList = () => {
                                         handleNavigate(agent.id);
                                     }
                                 }}
-                                className="cursor-pointer transition hover:bg-indigo-50 focus-within:bg-indigo-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-200"
+                                className="cursor-pointer transition hover:bg-blue-50 focus-within:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-200"
                             >
                                 <td className="px-5 py-4 align-center">
                                     <div className="flex flex-col gap-2">
@@ -600,66 +601,13 @@ const ServerList = () => {
 
     return (
         <div className="min-h-screen bg-white text-slate-900 flex flex-col">
-            <header className="border-b border-slate-200 bg-white/95">
-                <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                        <div>
-                            <p className="text-[11px] uppercase tracking-[0.4em] text-indigo-500/80">Pika Monitor</p>
-                            <h1 className="mt-1 text-2xl font-semibold">皮卡监控</h1>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                            <span>
-                                最后更新：
-                                <span className="font-semibold text-slate-900">{lastUpdatedDisplay}</span>
-                            </span>
-                            <span className="hidden h-4 w-px bg-slate-200 sm:inline-block"/>
-                            <div
-                                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1">
-                                <button
-                                    type="button"
-                                    onClick={() => setViewMode('grid')}
-                                    className={`inline-flex items-center gap-1 rounded-lg p-1 text-xs font-medium transition cursor-pointer ${
-                                        viewMode === 'grid'
-                                            ? 'bg-indigo-600 text-white shadow-sm'
-                                            : 'text-slate-500 hover:text-indigo-600'
-                                    }`}
-                                >
-                                    <LayoutGrid className="h-4 w-4"/>
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setViewMode('list')}
-                                    className={`inline-flex items-center gap-1 rounded-lg p-1 text-xs font-medium transition cursor-pointer ${
-                                        viewMode === 'list'
-                                            ? 'bg-indigo-600 text-white shadow-sm'
-                                            : 'text-slate-500 hover:text-indigo-600'
-                                    }`}
-                                >
-                                    <List className="h-4 w-4"/>
-                                </button>
-                            </div>
-                            <a
-                                href="https://github.com/dushixiang/pika"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white p-1.5 text-slate-500 transition hover:border-indigo-200 hover:text-indigo-700"
-                            >
-                                <img src={GithubSvg} className="h-4 w-4" alt="github"/>
-                            </a>
-                            <a
-                                type="button"
-                                href={'/login'}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 transition hover:border-indigo-200 hover:text-indigo-700 cursor-pointer"
-                            >
-                                <LogIn className="h-4 w-4"/>
-                                登录
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </header>
+            <PublicHeader
+                title="皮卡监控"
+                lastUpdated={lastUpdatedDisplay}
+                viewMode={viewMode}
+                onViewModeChange={setViewMode}
+                showViewToggle={true}
+            />
 
             <main className="flex-1 bg-white">
                 <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 space-y-6">
@@ -676,11 +624,7 @@ const ServerList = () => {
                 </div>
             </main>
 
-            <footer className="border-t border-slate-200 bg-white">
-                <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-4 text-center text-xs text-slate-400">
-                    © {new Date().getFullYear()} Pika Monitor · 保持洞察，稳定运行。
-                </div>
-            </footer>
+            <PublicFooter />
         </div>
     );
 };

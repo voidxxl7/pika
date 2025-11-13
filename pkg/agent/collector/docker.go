@@ -101,40 +101,6 @@ type containerStats struct {
 	Pids          int
 }
 
-// statsJSON Docker 容器统计信息的 JSON 结构
-type statsJSON struct {
-	CPUStats struct {
-		CPUUsage struct {
-			TotalUsage uint64 `json:"total_usage"`
-		} `json:"cpu_usage"`
-		SystemUsage uint64 `json:"system_cpu_usage"`
-		OnlineCPUs  uint32 `json:"online_cpus"`
-	} `json:"cpu_stats"`
-	PreCPUStats struct {
-		CPUUsage struct {
-			TotalUsage uint64 `json:"total_usage"`
-		} `json:"cpu_usage"`
-		SystemUsage uint64 `json:"system_cpu_usage"`
-	} `json:"precpu_stats"`
-	MemoryStats struct {
-		Usage uint64 `json:"usage"`
-		Limit uint64 `json:"limit"`
-	} `json:"memory_stats"`
-	BlkioStats struct {
-		IoServiceBytesRecursive []struct {
-			Op    string `json:"op"`
-			Value uint64 `json:"value"`
-		} `json:"io_service_bytes_recursive"`
-	} `json:"blkio_stats"`
-	Networks map[string]struct {
-		RxBytes uint64 `json:"rx_bytes"`
-		TxBytes uint64 `json:"tx_bytes"`
-	} `json:"networks"`
-	PidsStats struct {
-		Current uint64 `json:"current"`
-	} `json:"pids_stats"`
-}
-
 // getContainerStats 获取容器统计信息
 func (d *DockerCollector) getContainerStats(ctx context.Context, containerID string) (*containerStats, error) {
 	// 获取容器统计信息（不使用流式传输）
@@ -150,7 +116,7 @@ func (d *DockerCollector) getContainerStats(ctx context.Context, containerID str
 		return nil, err
 	}
 
-	var stats statsJSON
+	var stats container.StatsResponse
 	if err := json.Unmarshal(body, &stats); err != nil {
 		return nil, err
 	}
@@ -188,7 +154,7 @@ func (d *DockerCollector) getContainerStats(ctx context.Context, containerID str
 }
 
 // calculateCPUPercent 计算 CPU 使用率
-func calculateCPUPercent(stats *statsJSON) float64 {
+func calculateCPUPercent(stats *container.StatsResponse) float64 {
 	cpuDelta := float64(stats.CPUStats.CPUUsage.TotalUsage - stats.PreCPUStats.CPUUsage.TotalUsage)
 	systemDelta := float64(stats.CPUStats.SystemUsage - stats.PreCPUStats.SystemUsage)
 

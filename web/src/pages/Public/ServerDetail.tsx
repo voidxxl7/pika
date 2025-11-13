@@ -15,13 +15,12 @@ import {
     XAxis,
     YAxis,
 } from 'recharts';
-import {getAgent, getAgentLatestMetrics, getAgentMetrics} from '../../api/agent';
+import {getAgent, getAgentLatestMetrics, getAgentMetrics, type GetAgentMetricsRequest} from '../../api/agent';
 import type {
     Agent,
     AggregatedCPUMetric,
     AggregatedMemoryMetric,
     AggregatedNetworkMetric,
-    AggregatedLoadMetric,
     AggregatedDiskMetric,
     AggregatedDiskIOMetric,
     AggregatedGPUMetric,
@@ -73,13 +72,13 @@ const formatDateTime = (value: string | number | undefined | null): string => {
 };
 
 const timeRangeOptions = [
+    {label: '5分钟', value: '5m'},
+    {label: '15分钟', value: '15m'},
+    {label: '30分钟', value: '30m'},
     {label: '1小时', value: '1h'},
-    {label: '6小时', value: '6h'},
-    {label: '12小时', value: '12h'},
-    {label: '24小时', value: '24h'},
-    {label: '3天', value: '3d'},
-    {label: '7天', value: '7d'},
 ] as const;
+
+type TimeRange = typeof timeRangeOptions[number]['value'];
 
 const LoadingSpinner = () => (
     <div className="flex min-h-screen items-center justify-center bg-slate-50">
@@ -127,13 +126,13 @@ const Card = ({
     </section>
 );
 
-type AccentVariant = 'indigo' | 'emerald' | 'purple' | 'sky' | 'amber';
+type AccentVariant = 'blue' | 'emerald' | 'purple' | 'sky' | 'amber';
 
 const accentThemes: Record<AccentVariant, { icon: string; badge: string; highlight: string }> = {
-    indigo: {
-        icon: 'bg-indigo-50 text-indigo-600',
-        badge: 'bg-indigo-100 text-indigo-600',
-        highlight: 'text-indigo-600',
+    blue: {
+        icon: 'bg-blue-50 text-blue-600',
+        badge: 'bg-blue-100 text-blue-600',
+        highlight: 'text-blue-600',
     },
     emerald: {
         icon: 'bg-emerald-50 text-emerald-600',
@@ -172,8 +171,8 @@ const TimeRangeSelector = ({
                                value,
                                onChange,
                            }: {
-    value: '1h' | '6h' | '12h' | '24h' | '1d' | '3d' | '7d';
-    onChange: (value: '1h' | '6h' | '12h' | '24h' | '1d' | '3d' | '7d') => void;
+    value: TimeRange;
+    onChange: (value: TimeRange) => void;
 }) => (
     <div className="flex flex-wrap items-center gap-2">
         {timeRangeOptions.map((option) => {
@@ -185,8 +184,8 @@ const TimeRangeSelector = ({
                     onClick={() => onChange(option.value)}
                     className={`rounded-lg border px-3 py-1.5 text-sm transition ${
                         isActive
-                            ? 'border-indigo-200 bg-indigo-600 text-white'
-                            : 'border-slate-200 bg-white text-slate-500 hover:border-indigo-200 hover:text-indigo-600'
+                            ? 'border-blue-200 bg-blue-600 text-white'
+                            : 'border-slate-200 bg-white text-slate-500 hover:border-blue-200 hover:text-blue-600'
                     }`}
                 >
                     {option.label}
@@ -197,6 +196,195 @@ const TimeRangeSelector = ({
 );
 
 type MetricsTooltipProps = TooltipProps<number, string> & { unit?: string, label?: string, payload?: any[] };
+
+type MetricsState = {
+    cpu: AggregatedCPUMetric[];
+    memory: AggregatedMemoryMetric[];
+    network: AggregatedNetworkMetric[];
+    disk: AggregatedDiskMetric[];
+    diskIO: AggregatedDiskIOMetric[];
+    gpu: AggregatedGPUMetric[];
+    temperature: AggregatedTemperatureMetric[];
+};
+
+const createEmptyMetricsState = (): MetricsState => ({
+    cpu: [],
+    memory: [],
+    network: [],
+    disk: [],
+    diskIO: [],
+    gpu: [],
+    temperature: [],
+});
+
+const metricRequestConfig: Array<{ key: keyof MetricsState; type: GetAgentMetricsRequest['type'] }> = [
+    {key: 'cpu', type: 'cpu'},
+    {key: 'memory', type: 'memory'},
+    {key: 'network', type: 'network'},
+    {key: 'disk', type: 'disk'},
+    {key: 'diskIO', type: 'disk_io'},
+    {key: 'gpu', type: 'gpu'},
+    {key: 'temperature', type: 'temperature'},
+];
+
+const useAgentOverview = (agentId?: string) => {
+    const [agent, setAgent] = useState<Agent | null>(null);
+    const [latestMetrics, setLatestMetrics] = useState<LatestMetrics | null>(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        if (!agentId) {
+            setAgent(null);
+            setLatestMetrics(null);
+            setLoading(false);
+            return;
+        }
+
+        const fetchAgent = async () => {
+            setLoading(true);
+            try {
+                const [agentRes, latestRes] = await Promise.all([getAgent(agentId), getAgentLatestMetrics(agentId)]);
+                if (!cancelled) {
+                    setAgent(agentRes.data);
+                    setLatestMetrics(latestRes.data);
+                }
+            } catch (error) {
+                console.error('Failed to load agent details:', error);
+            } finally {
+                if (!cancelled) {
+                    setLoading(false);
+                }
+            }
+        };
+
+        fetchAgent();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [agentId]);
+
+    useEffect(() => {
+        if (!agentId) return;
+
+        let cancelled = false;
+
+        const refreshLatest = async () => {
+            try {
+                const latestRes = await getAgentLatestMetrics(agentId);
+                if (!cancelled) {
+                    setLatestMetrics(latestRes.data);
+                }
+            } catch (error) {
+                console.error('Failed to refresh latest metrics:', error);
+            }
+        };
+
+        const timer = setInterval(refreshLatest, 5000);
+        return () => {
+            cancelled = true;
+            clearInterval(timer);
+        };
+    }, [agentId]);
+
+    return {agent, latestMetrics, loading};
+};
+
+const useAggregatedMetrics = (agentId: string | undefined, range: TimeRange) => {
+    const [metrics, setMetrics] = useState<MetricsState>(() => createEmptyMetricsState());
+
+    useEffect(() => {
+        if (!agentId) {
+            setMetrics(createEmptyMetricsState());
+            return;
+        }
+
+        let cancelled = false;
+
+        const fetchMetrics = async () => {
+            try {
+                const responses = await Promise.all(
+                    metricRequestConfig.map(({type}) => getAgentMetrics({agentId, type, range})),
+                );
+                if (cancelled) return;
+                const nextState = createEmptyMetricsState();
+                metricRequestConfig.forEach(({key}, index) => {
+                    nextState[key] = responses[index].data.metrics || [];
+                });
+                setMetrics(nextState);
+            } catch (error) {
+                console.error('Failed to load metrics:', error);
+            }
+        };
+
+        fetchMetrics();
+        const timer = setInterval(fetchMetrics, 30000);
+        return () => {
+            cancelled = true;
+            clearInterval(timer);
+        };
+    }, [agentId, range]);
+
+    return metrics;
+};
+
+type SnapshotCardData = {
+    key: string;
+    icon: typeof Cpu;
+    title: string;
+    usagePercent: string;
+    accent: AccentVariant;
+    metrics: Array<{ label: string; value: ReactNode }>;
+};
+
+const SnapshotGrid = ({cards}: { cards: SnapshotCardData[] }) => (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {cards.map((card) => {
+            const theme = accentThemes[card.accent];
+            return (
+                <div
+                    key={card.key}
+                    className="rounded-2xl border border-slate-100 bg-white/95 p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                >
+                    <div className="mb-3 flex items-start justify-between">
+                        <div className="flex items-center gap-2">
+                            <span className={`flex h-9 w-9 items-center justify-center rounded-lg ${theme.icon}`}>
+                                <card.icon className="h-4 w-4"/>
+                            </span>
+                            <p className="text-sm font-semibold text-slate-900">{card.title}</p>
+                        </div>
+                        <span className={`text-xl font-bold ${theme.highlight}`}>{card.usagePercent}</span>
+                    </div>
+                    <div className="space-y-2">
+                        {card.metrics.map((metric) => (
+                            <div key={metric.label} className="flex items-center justify-between text-xs">
+                                <span className="text-slate-500">{metric.label}</span>
+                                <span className="ml-2 text-right font-medium text-slate-900">{metric.value}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        })}
+    </div>
+);
+
+const SnapshotSection = ({cards}: { cards: SnapshotCardData[] }) => {
+    if (cards.length === 0) {
+        return null;
+    }
+    return (
+        <div className="space-y-4">
+            <div>
+                <h3 className="text-sm font-semibold text-slate-700">资源快照</h3>
+                <p className="mt-1 text-xs text-slate-500">最近 5 秒采集的资源使用状况</p>
+            </div>
+            <SnapshotGrid cards={cards}/>
+        </div>
+    );
+};
 
 const CustomTooltip = ({active, payload, label, unit = '%'}: MetricsTooltipProps) => {
     if (!active || !payload || payload.length === 0) {
@@ -243,113 +431,10 @@ const ServerDetail = () => {
     const {id} = useParams<{ id: string }>();
     const navigate = useNavigate();
 
-    const [loading, setLoading] = useState(true);
-    const [agent, setAgent] = useState<Agent | null>(null);
-    const [latestMetrics, setLatestMetrics] = useState<LatestMetrics | null>(null);
-    const [timeRange, setTimeRange] = useState<'1h' | '6h' | '12h' | '24h' | '1d' | '3d' | '7d'>('1h');
+    const [timeRange, setTimeRange] = useState<TimeRange>('5m');
     const [selectedInterface, setSelectedInterface] = useState<string>('all');
-    const [metricsData, setMetricsData] = useState<{
-        cpu: AggregatedCPUMetric[];
-        memory: AggregatedMemoryMetric[];
-        network: AggregatedNetworkMetric[];
-        load: AggregatedLoadMetric[];
-        disk: AggregatedDiskMetric[];
-        diskIO: AggregatedDiskIOMetric[];
-        gpu: AggregatedGPUMetric[];
-        temperature: AggregatedTemperatureMetric[];
-    }>({
-        cpu: [],
-        memory: [],
-        network: [],
-        load: [],
-        disk: [],
-        diskIO: [],
-        gpu: [],
-        temperature: [],
-    });
-
-    const loadMetrics = async () => {
-        if (!id) return;
-
-        try {
-            const [cpuRes, memoryRes, networkRes, loadRes, diskRes, diskIORes, gpuRes, temperatureRes] = await Promise.all([
-                getAgentMetrics({agentId: id, type: 'cpu', range: timeRange}),
-                getAgentMetrics({agentId: id, type: 'memory', range: timeRange}),
-                getAgentMetrics({agentId: id, type: 'network', range: timeRange}),
-                getAgentMetrics({agentId: id, type: 'load', range: timeRange}),
-                getAgentMetrics({agentId: id, type: 'disk', range: timeRange}),
-                getAgentMetrics({agentId: id, type: 'disk_io', range: timeRange}),
-                getAgentMetrics({agentId: id, type: 'gpu', range: timeRange}),
-                getAgentMetrics({agentId: id, type: 'temperature', range: timeRange}),
-            ]);
-
-            setMetricsData({
-                cpu: cpuRes.data.metrics || [],
-                memory: memoryRes.data.metrics || [],
-                network: networkRes.data.metrics || [],
-                load: loadRes.data.metrics || [],
-                disk: diskRes.data.metrics || [],
-                diskIO: diskIORes.data.metrics || [],
-                gpu: gpuRes.data.metrics || [],
-                temperature: temperatureRes.data.metrics || [],
-            });
-        } catch (error) {
-            console.error('Failed to load metrics:', error);
-        }
-    };
-
-    const loadLatestMetrics = async () => {
-        if (!id) return;
-        try {
-            const latestRes = await getAgentLatestMetrics(id);
-            setLatestMetrics(latestRes.data);
-        } catch (error) {
-            console.error('Failed to refresh latest metrics:', error);
-        }
-    };
-
-    useEffect(() => {
-        if (!id) return;
-
-        let isMounted = true;
-
-        const initialize = async () => {
-            try {
-                setLoading(true);
-                const [agentRes, latestRes] = await Promise.all([getAgent(id), getAgentLatestMetrics(id)]);
-                if (!isMounted) return;
-                setAgent(agentRes.data);
-                setLatestMetrics(latestRes.data);
-            } catch (error) {
-                console.error('Failed to load agent details:', error);
-            } finally {
-                if (isMounted) {
-                    setLoading(false);
-                }
-            }
-        };
-
-        initialize();
-
-        return () => {
-            isMounted = false;
-        };
-    }, [id]);
-
-    useEffect(() => {
-        if (!id) return;
-
-        loadMetrics();
-        const chartInterval = setInterval(loadMetrics, 30000);
-        return () => clearInterval(chartInterval);
-    }, [id, timeRange]);
-
-    useEffect(() => {
-        if (!id) return;
-
-        const interval = setInterval(loadLatestMetrics, 5000);
-        return () => clearInterval(interval);
-    }, [id]);
+    const {agent, latestMetrics, loading} = useAgentOverview(id);
+    const metricsData = useAggregatedMetrics(id, timeRange);
 
     const cpuChartData = useMemo(
         () =>
@@ -358,7 +443,7 @@ const ServerDetail = () => {
                     hour: '2-digit',
                     minute: '2-digit',
                 }),
-                usage: Number(item.avgUsage.toFixed(2)),
+                usage: Number(item.maxUsage.toFixed(2)),
             })),
         [metricsData.cpu]
     );
@@ -370,7 +455,7 @@ const ServerDetail = () => {
                     hour: '2-digit',
                     minute: '2-digit',
                 }),
-                usage: Number(item.avgUsage.toFixed(2)),
+                usage: Number(item.maxUsage.toFixed(2)),
             })),
         [metricsData.memory]
     );
@@ -383,6 +468,15 @@ const ServerDetail = () => {
         });
         return Array.from(interfaces).sort();
     }, [metricsData.network]);
+
+    useEffect(() => {
+        if (selectedInterface === 'all') {
+            return;
+        }
+        if (!availableInterfaces.includes(selectedInterface)) {
+            setSelectedInterface('all');
+        }
+    }, [availableInterfaces, selectedInterface]);
 
     const networkChartData = useMemo(() => {
         const aggregated: Record<
@@ -406,8 +500,8 @@ const ServerDetail = () => {
             }
 
             // 聚合数据：使用平均速率（字节/秒）转换为 MB/s
-            aggregated[time].upload += item.avgSentRate / 1024 / 1024;
-            aggregated[time].download += item.avgRecvRate / 1024 / 1024;
+            aggregated[time].upload += item.maxSentRate / 1024 / 1024;
+            aggregated[time].download += item.maxRecvRate / 1024 / 1024;
         });
 
         return Object.values(aggregated).map((item) => ({
@@ -416,45 +510,6 @@ const ServerDetail = () => {
             download: Number(item.download.toFixed(2)),
         }));
     }, [metricsData.network, selectedInterface]);
-
-    // Load 图表数据 (三条线: load1, load5, load15)
-    const loadChartData = useMemo(
-        () =>
-            metricsData.load.map((item) => ({
-                time: new Date(item.timestamp).toLocaleTimeString('zh-CN', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                }),
-                load1: Number(item.avgLoad1.toFixed(2)),
-                load5: Number(item.avgLoad5.toFixed(2)),
-                load15: Number(item.avgLoad15.toFixed(2)),
-            })),
-        [metricsData.load]
-    );
-
-    // Disk 图表数据（汇总所有挂载点的平均使用率）
-    const diskChartData = useMemo(() => {
-        const aggregated: Record<string, { time: string; usage: number; count: number }> = {};
-
-        metricsData.disk.forEach((item) => {
-            const time = new Date(item.timestamp).toLocaleTimeString('zh-CN', {
-                hour: '2-digit',
-                minute: '2-digit',
-            });
-
-            if (!aggregated[time]) {
-                aggregated[time] = {time, usage: 0, count: 0};
-            }
-
-            aggregated[time].usage += item.avgUsage;
-            aggregated[time].count += 1;
-        });
-
-        return Object.values(aggregated).map((item) => ({
-            time: item.time,
-            usage: Number((item.usage / item.count).toFixed(2)),
-        }));
-    }, [metricsData.disk]);
 
     // Disk I/O 图表数据（汇总所有磁盘）
     const diskIOChartData = useMemo(() => {
@@ -471,8 +526,8 @@ const ServerDetail = () => {
             }
 
             // 转换为 MB/s
-            aggregated[time].read += item.avgReadRate / 1024 / 1024;
-            aggregated[time].write += item.avgWriteRate / 1024 / 1024;
+            aggregated[time].read += item.maxReadRate / 1024 / 1024;
+            aggregated[time].write += item.maxWriteRate / 1024 / 1024;
         });
 
         return Object.values(aggregated).map((item) => ({
@@ -496,8 +551,8 @@ const ServerDetail = () => {
                 aggregated[time] = {time, utilization: 0, temperature: 0, count: 0};
             }
 
-            aggregated[time].utilization += item.avgUtilization;
-            aggregated[time].temperature += item.avgTemperature;
+            aggregated[time].utilization += item.maxUtilization;
+            aggregated[time].temperature += item.maxTemperature;
             aggregated[time].count += 1;
         });
 
@@ -522,7 +577,7 @@ const ServerDetail = () => {
                 aggregated[time] = {time, temperature: 0, count: 0};
             }
 
-            aggregated[time].temperature += item.avgTemperature;
+            aggregated[time].temperature += item.maxTemperature;
             aggregated[time].count += 1;
         });
 
@@ -532,7 +587,7 @@ const ServerDetail = () => {
         }));
     }, [metricsData.temperature]);
 
-    const snapshotCards = useMemo(() => {
+    const snapshotCards: SnapshotCardData[] = useMemo(() => {
         if (!latestMetrics) {
             return [] as Array<{
                 key: string;
@@ -558,7 +613,7 @@ const ServerDetail = () => {
             icon: Cpu,
             title: 'CPU 使用',
             usagePercent: `${formatPercentValue(latestMetrics.cpu?.usagePercent)}%`,
-            accent: 'indigo',
+            accent: 'blue',
             metrics: [
                 {label: '当前使用', value: `${formatPercentValue(latestMetrics.cpu?.usagePercent)}%`},
                 {
@@ -625,7 +680,7 @@ const ServerDetail = () => {
         });
 
         return cards;
-    }, [agent, latestMetrics]);
+    }, [latestMetrics]);
 
     const platformDisplay = latestMetrics?.host?.platform
         ? `${latestMetrics.host.platform} ${latestMetrics.host.platformVersion || ''}`.trim()
@@ -641,9 +696,6 @@ const ServerDetail = () => {
     const statusDotStyles = isOnline ? 'bg-emerald-500' : 'bg-slate-400';
     const statusText = isOnline ? '在线' : '离线';
 
-    const loadSummary = latestMetrics?.load
-        ? `${latestMetrics.load.load1.toFixed(2)} / ${latestMetrics.load.load5.toFixed(2)} / ${latestMetrics.load.load15.toFixed(2)}`
-        : '-';
     const networkSummary = latestMetrics?.network
         ? `${formatBytes(latestMetrics.network.totalBytesSentTotal)} ↑ / ${formatBytes(
             latestMetrics.network.totalBytesRecvTotal,
@@ -664,7 +716,6 @@ const ServerDetail = () => {
         {label: '启动时间', value: bootTimeDisplay},
         {label: '最近心跳', value: lastSeenDisplay},
         {label: '进程数', value: latestMetrics?.host?.procs ?? '-'},
-        {label: '负载 (1 / 5 / 15)', value: loadSummary},
         {label: '网络累计', value: networkSummary},
     ];
 
@@ -686,7 +737,7 @@ const ServerDetail = () => {
     return (
         <div className="min-h-screen bg-slate-50 text-slate-900">
             <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-4 pb-10 pt-6 sm:px-6 lg:px-8">
-                <section className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-900 p-6 text-white shadow-xl">
+                <section className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-slate-800 to-blue-900 p-6 text-white shadow-xl">
                     <div className="absolute inset-0 opacity-30 [background-image:radial-gradient(circle_at_top,rgba(255,255,255,0.35),transparent_55%)]"/>
                     <div className="relative flex flex-col gap-6">
                         <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
@@ -742,8 +793,6 @@ const ServerDetail = () => {
                             <span className="hidden h-1 w-1 rounded-full bg-white/30 sm:inline-block"/>
                             <span>版本：{agent.version || '-'}</span>
                             <span className="hidden h-1 w-1 rounded-full bg-white/30 sm:inline-block"/>
-                            <span>负载：{loadSummary}</span>
-                            <span className="hidden h-1 w-1 rounded-full bg-white/30 sm:inline-block"/>
                             <span>网络累计：{networkSummary}</span>
                         </div>
                     </div>
@@ -762,54 +811,13 @@ const ServerDetail = () => {
                                 </div>
                                 <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
                                     <h3 className="text-sm font-semibold text-slate-700">运行状态</h3>
-                                    <p className="mt-1 text-xs text-slate-500">关键时间与负载指标，帮助快速判断主机健康状况</p>
+                                    <p className="mt-1 text-xs text-slate-500">关键时间与网络指标，帮助快速判断主机健康状况</p>
                                     <div className="mt-4">
                                         <InfoGrid items={statusInfo}/>
                                     </div>
                                 </div>
                             </div>
-                            {snapshotCards.length > 0 ? (
-                                <div className="space-y-4">
-                                    <div>
-                                        <h3 className="text-sm font-semibold text-slate-700">资源快照</h3>
-                                        <p className="mt-1 text-xs text-slate-500">最近 5 秒采集的资源使用状况</p>
-                                    </div>
-                                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                                        {snapshotCards.map((card) => {
-                                            const theme = accentThemes[card.accent];
-                                            return (
-                                                <div
-                                                    key={card.key}
-                                                    className="rounded-2xl border border-slate-100 bg-white/95 p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-                                                >
-                                                    <div className="flex items-start justify-between mb-3">
-                                                        <div className="flex items-center gap-2">
-                                                            <span
-                                                                className={`flex h-9 w-9 items-center justify-center rounded-lg ${theme.icon}`}>
-                                                                <card.icon className="h-4 w-4"/>
-                                                            </span>
-                                                            <p className="text-sm font-semibold text-slate-900">{card.title}</p>
-                                                        </div>
-                                                        <span className={`text-xl font-bold ${theme.highlight}`}>
-                                                            {card.usagePercent}
-                                                        </span>
-                                                    </div>
-                                                    <div className="space-y-2">
-                                                        {card.metrics.map((metric) => (
-                                                            <div key={metric.label}
-                                                                 className="flex items-center justify-between text-xs">
-                                                                <span className="text-slate-500">{metric.label}</span>
-                                                                <span
-                                                                    className="font-medium text-slate-900 text-right ml-2">{metric.value}</span>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            ) : null}
+                            <SnapshotSection cards={snapshotCards}/>
                         </div>
                     </Card>
 
@@ -818,22 +826,22 @@ const ServerDetail = () => {
                         description="针对选定时间范围展示 CPU、内存与网络的变化趋势"
                         action={<TimeRangeSelector value={timeRange} onChange={setTimeRange}/>}
                     >
-                        <div className="space-y-10">
-                            <div>
+                        <div className="grid gap-6 md:grid-cols-2">
+                            <section>
                                 <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
                                     <span
-                                        className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
+                                        className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
                                         <Cpu className="h-4 w-4"/>
                                     </span>
                                     CPU 使用率
                                 </h3>
                                 {cpuChartData.length > 0 ? (
-                                    <ResponsiveContainer width="100%" height={300}>
+                                    <ResponsiveContainer width="100%" height={220}>
                                         <AreaChart data={cpuChartData}>
                                             <defs>
                                                 <linearGradient id="cpuAreaGradient" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.4}/>
-                                                    <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
+                                                    <stop offset="5%" stopColor="#2563eb" stopOpacity={0.4}/>
+                                                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
                                                 </linearGradient>
                                             </defs>
                                             <CartesianGrid stroke="#e5e7eb" strokeDasharray="4 4"/>
@@ -853,7 +861,7 @@ const ServerDetail = () => {
                                                 type="monotone"
                                                 dataKey="usage"
                                                 name="CPU 使用率"
-                                                stroke="#4f46e5"
+                                                stroke="#2563eb"
                                                 strokeWidth={2}
                                                 fill="url(#cpuAreaGradient)"
                                                 activeDot={{r: 3}}
@@ -862,13 +870,13 @@ const ServerDetail = () => {
                                     </ResponsiveContainer>
                                 ) : (
                                     <div
-                                        className="flex h-64 items-center justify-center rounded-lg border border-dashed border-slate-200 text-sm text-slate-500">
+                                        className="flex h-52 items-center justify-center rounded-lg border border-dashed border-slate-200 text-sm text-slate-500">
                                         暂无数据
                                     </div>
                                 )}
-                            </div>
+                            </section>
 
-                            <div>
+                            <section>
                                 <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
                                     <span
                                         className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600">
@@ -877,7 +885,7 @@ const ServerDetail = () => {
                                     内存使用率
                                 </h3>
                                 {memoryChartData.length > 0 ? (
-                                    <ResponsiveContainer width="100%" height={300}>
+                                    <ResponsiveContainer width="100%" height={220}>
                                         <AreaChart data={memoryChartData}>
                                             <defs>
                                                 <linearGradient id="memoryAreaGradient" x1="0" y1="0" x2="0" y2="1">
@@ -911,17 +919,17 @@ const ServerDetail = () => {
                                     </ResponsiveContainer>
                                 ) : (
                                     <div
-                                        className="flex h-64 items-center justify-center rounded-lg border border-dashed border-slate-200 text-sm text-slate-500">
+                                        className="flex h-52 items-center justify-center rounded-lg border border-dashed border-slate-200 text-sm text-slate-500">
                                         暂无数据
                                     </div>
                                 )}
-                            </div>
+                            </section>
 
-                            <div>
+                            <section>
                                 <div className="mb-3 flex items-center justify-between">
                                     <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-700">
                                         <span
-                                            className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-100 text-sky-600">
+                                            className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
                                             <Network className="h-4 w-4"/>
                                         </span>
                                         网络流量（MB/s）
@@ -930,7 +938,7 @@ const ServerDetail = () => {
                                         <select
                                             value={selectedInterface}
                                             onChange={(e) => setSelectedInterface(e.target.value)}
-                                            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 hover:border-sky-300 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200"
+                                            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 hover:border-blue-300 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
                                         >
                                             <option value="all">所有网卡</option>
                                             {availableInterfaces.map((iface) => (
@@ -942,7 +950,7 @@ const ServerDetail = () => {
                                     )}
                                 </div>
                                 {networkChartData.length > 0 ? (
-                                    <ResponsiveContainer width="100%" height={300}>
+                                    <ResponsiveContainer width="100%" height={220}>
                                         <LineChart data={networkChartData}>
                                             <CartesianGrid stroke="#e5e7eb" strokeDasharray="4 4"/>
                                             <XAxis
@@ -979,122 +987,13 @@ const ServerDetail = () => {
                                     </ResponsiveContainer>
                                 ) : (
                                     <div
-                                        className="flex h-64 items-center justify-center rounded-lg border border-dashed border-slate-200 text-sm text-slate-500">
+                                        className="flex h-52 items-center justify-center rounded-lg border border-dashed border-slate-200 text-sm text-slate-500">
                                         暂无数据
                                     </div>
                                 )}
-                            </div>
+                            </section>
 
-                            <div>
-                                <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
-                                    <span
-                                        className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 text-amber-600">
-                                        <Activity className="h-4 w-4"/>
-                                    </span>
-                                    系统负载 (Load Average)
-                                </h3>
-                                {loadChartData.length > 0 ? (
-                                    <ResponsiveContainer width="100%" height={300}>
-                                        <LineChart data={loadChartData}>
-                                            <CartesianGrid stroke="#e5e7eb" strokeDasharray="4 4"/>
-                                            <XAxis
-                                                dataKey="time"
-                                                stroke="#94a3b8"
-                                                style={{fontSize: '12px'}}
-                                            />
-                                            <YAxis
-                                                stroke="#94a3b8"
-                                                style={{fontSize: '12px'}}
-                                            />
-                                            <Tooltip content={<CustomTooltip unit=""/>}/>
-                                            <Legend/>
-                                            <Line
-                                                type="monotone"
-                                                dataKey="load1"
-                                                name="1分钟"
-                                                stroke="#7EB26D"
-                                                strokeWidth={2}
-                                                dot={false}
-                                                activeDot={{r: 3}}
-                                            />
-                                            <Line
-                                                type="monotone"
-                                                dataKey="load5"
-                                                name="5分钟"
-                                                stroke="#EAB839"
-                                                strokeWidth={2}
-                                                dot={false}
-                                                activeDot={{r: 3}}
-                                            />
-                                            <Line
-                                                type="monotone"
-                                                dataKey="load15"
-                                                name="15分钟"
-                                                stroke="#EF843C"
-                                                strokeWidth={2}
-                                                dot={false}
-                                                activeDot={{r: 3}}
-                                            />
-                                        </LineChart>
-                                    </ResponsiveContainer>
-                                ) : (
-                                    <div
-                                        className="flex h-64 items-center justify-center rounded-lg border border-dashed border-slate-200 text-sm text-slate-500">
-                                        暂无数据
-                                    </div>
-                                )}
-                            </div>
-
-                            <div>
-                                <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
-                                    <span
-                                        className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-100 text-purple-600">
-                                        <HardDrive className="h-4 w-4"/>
-                                    </span>
-                                    磁盘使用率
-                                </h3>
-                                {diskChartData.length > 0 ? (
-                                    <ResponsiveContainer width="100%" height={300}>
-                                        <AreaChart data={diskChartData}>
-                                            <defs>
-                                                <linearGradient id="diskAreaGradient" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%" stopColor="#9333ea" stopOpacity={0.4}/>
-                                                    <stop offset="95%" stopColor="#9333ea" stopOpacity={0}/>
-                                                </linearGradient>
-                                            </defs>
-                                            <CartesianGrid stroke="#e5e7eb" strokeDasharray="4 4"/>
-                                            <XAxis
-                                                dataKey="time"
-                                                stroke="#94a3b8"
-                                                style={{fontSize: '12px'}}
-                                            />
-                                            <YAxis
-                                                domain={[0, 100]}
-                                                stroke="#94a3b8"
-                                                style={{fontSize: '12px'}}
-                                                tickFormatter={(value) => `${value}%`}
-                                            />
-                                            <Tooltip content={<CustomTooltip unit="%"/>}/>
-                                            <Area
-                                                type="monotone"
-                                                dataKey="usage"
-                                                name="磁盘使用率"
-                                                stroke="#9333ea"
-                                                strokeWidth={2}
-                                                fill="url(#diskAreaGradient)"
-                                                activeDot={{r: 3}}
-                                            />
-                                        </AreaChart>
-                                    </ResponsiveContainer>
-                                ) : (
-                                    <div
-                                        className="flex h-64 items-center justify-center rounded-lg border border-dashed border-slate-200 text-sm text-slate-500">
-                                        暂无数据
-                                    </div>
-                                )}
-                            </div>
-
-                            <div>
+                            <section>
                                 <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
                                     <span
                                         className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-100 text-rose-600">
@@ -1103,7 +1002,7 @@ const ServerDetail = () => {
                                     磁盘 I/O (MB/s)
                                 </h3>
                                 {diskIOChartData.length > 0 ? (
-                                    <ResponsiveContainer width="100%" height={300}>
+                                    <ResponsiveContainer width="100%" height={220}>
                                         <LineChart data={diskIOChartData}>
                                             <CartesianGrid stroke="#e5e7eb" strokeDasharray="4 4"/>
                                             <XAxis
@@ -1140,14 +1039,14 @@ const ServerDetail = () => {
                                     </ResponsiveContainer>
                                 ) : (
                                     <div
-                                        className="flex h-64 items-center justify-center rounded-lg border border-dashed border-slate-200 text-sm text-slate-500">
+                                        className="flex h-52 items-center justify-center rounded-lg border border-dashed border-slate-200 text-sm text-slate-500">
                                         暂无数据
                                     </div>
                                 )}
-                            </div>
+                            </section>
 
                             {gpuChartData.length > 0 && (
-                                <div>
+                                <section>
                                     <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
                                         <span
                                             className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100 text-violet-600">
@@ -1155,7 +1054,7 @@ const ServerDetail = () => {
                                         </span>
                                         GPU 使用率与温度
                                     </h3>
-                                    <ResponsiveContainer width="100%" height={300}>
+                                    <ResponsiveContainer width="100%" height={220}>
                                         <LineChart data={gpuChartData}>
                                             <CartesianGrid stroke="#e5e7eb" strokeDasharray="4 4"/>
                                             <XAxis
@@ -1200,11 +1099,11 @@ const ServerDetail = () => {
                                             />
                                         </LineChart>
                                     </ResponsiveContainer>
-                                </div>
+                                </section>
                             )}
 
                             {temperatureChartData.length > 0 && (
-                                <div>
+                                <section>
                                     <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
                                         <span
                                             className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-100 text-orange-600">
@@ -1212,7 +1111,7 @@ const ServerDetail = () => {
                                         </span>
                                         系统温度
                                     </h3>
-                                    <ResponsiveContainer width="100%" height={300}>
+                                    <ResponsiveContainer width="100%" height={220}>
                                         <AreaChart data={temperatureChartData}>
                                             <defs>
                                                 <linearGradient id="tempAreaGradient" x1="0" y1="0" x2="0" y2="1">
@@ -1243,10 +1142,11 @@ const ServerDetail = () => {
                                             />
                                         </AreaChart>
                                     </ResponsiveContainer>
-                                </div>
+                                </section>
                             )}
                         </div>
                     </Card>
+
 
                     {/* GPU 监控 */}
                     {latestMetrics?.gpu && latestMetrics.gpu.length > 0 && (
@@ -1325,7 +1225,6 @@ const ServerDetail = () => {
                                     <thead>
                                     <tr className="border-b border-slate-200 text-left text-xs font-medium text-slate-500">
                                         <th className="pb-3 pr-4">容器名称</th>
-                                        <th className="pb-3 pr-4">镜像</th>
                                         <th className="pb-3 pr-4">状态</th>
                                         <th className="pb-3 pr-4 text-right">CPU</th>
                                         <th className="pb-3 pr-4 text-right">内存</th>
@@ -1343,7 +1242,6 @@ const ServerDetail = () => {
                                                     <span className="font-medium text-slate-900">{container.name}</span>
                                                 </div>
                                             </td>
-                                            <td className="py-3 pr-4 text-slate-600 truncate max-w-xs">{container.image}</td>
                                             <td className="py-3 pr-4">
                                                 <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
                                                     container.state === 'running'

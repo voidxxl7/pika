@@ -10,26 +10,25 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 type UserService struct {
-	logger     *zap.Logger
-	userRepo   *repo.UserRepo
-	Repository *repo.UserRepo
+	logger   *zap.Logger
+	UserRepo *repo.UserRepo
 }
 
-func NewUserService(logger *zap.Logger, userRepo *repo.UserRepo) *UserService {
+func NewUserService(logger *zap.Logger, db *gorm.DB) *UserService {
 	return &UserService{
-		logger:     logger,
-		userRepo:   userRepo,
-		Repository: userRepo,
+		logger:   logger,
+		UserRepo: repo.NewUserRepo(db),
 	}
 }
 
 // CreateUser 创建用户
 func (s *UserService) CreateUser(ctx context.Context, req *CreateUserRequest) (*models.User, error) {
 	// 检查用户名是否已存在
-	existingUser, err := s.userRepo.FindByUsername(ctx, req.Username)
+	existingUser, err := s.UserRepo.FindByUsername(ctx, req.Username)
 	if err == nil && existingUser != nil {
 		return nil, errors.New("用户名已存在")
 	}
@@ -55,7 +54,7 @@ func (s *UserService) CreateUser(ctx context.Context, req *CreateUserRequest) (*
 		UpdatedAt: now,
 	}
 
-	if err := s.userRepo.Create(ctx, user); err != nil {
+	if err := s.UserRepo.Create(ctx, user); err != nil {
 		return nil, err
 	}
 
@@ -65,7 +64,7 @@ func (s *UserService) CreateUser(ctx context.Context, req *CreateUserRequest) (*
 
 // UpdateUser 更新用户
 func (s *UserService) UpdateUser(ctx context.Context, userID string, req *UpdateUserRequest) (*models.User, error) {
-	user, err := s.userRepo.FindById(ctx, userID)
+	user, err := s.UserRepo.FindById(ctx, userID)
 	if err != nil {
 		return nil, errors.New("用户不存在")
 	}
@@ -75,7 +74,7 @@ func (s *UserService) UpdateUser(ctx context.Context, userID string, req *Update
 		user.Nickname = req.Nickname
 	}
 
-	if err := s.userRepo.UpdateById(ctx, &user); err != nil {
+	if err := s.UserRepo.UpdateById(ctx, &user); err != nil {
 		return nil, err
 	}
 
@@ -85,7 +84,7 @@ func (s *UserService) UpdateUser(ctx context.Context, userID string, req *Update
 
 // DeleteUser 删除用户
 func (s *UserService) DeleteUser(ctx context.Context, userID string) error {
-	if err := s.userRepo.DeleteById(ctx, userID); err != nil {
+	if err := s.UserRepo.DeleteById(ctx, userID); err != nil {
 		return err
 	}
 
@@ -95,7 +94,7 @@ func (s *UserService) DeleteUser(ctx context.Context, userID string) error {
 
 // GetUser 获取用户信息
 func (s *UserService) GetUser(ctx context.Context, userID string) (*models.User, error) {
-	user, err := s.userRepo.FindById(ctx, userID)
+	user, err := s.UserRepo.FindById(ctx, userID)
 	if err != nil {
 		return nil, errors.New("用户不存在")
 	}
@@ -104,18 +103,18 @@ func (s *UserService) GetUser(ctx context.Context, userID string) (*models.User,
 
 // GetUserByUsername 根据用户名获取用户
 func (s *UserService) GetUserByUsername(ctx context.Context, username string) (*models.User, error) {
-	return s.userRepo.FindByUsername(ctx, username)
+	return s.UserRepo.FindByUsername(ctx, username)
 }
 
 // ListUsers 列出用户
 func (s *UserService) ListUsers(ctx context.Context, page, pageSize int) ([]models.User, int64, error) {
 	offset := (page - 1) * pageSize
-	return s.userRepo.ListUsers(ctx, offset, pageSize)
+	return s.UserRepo.ListUsers(ctx, offset, pageSize)
 }
 
 // ChangePassword 修改密码
 func (s *UserService) ChangePassword(ctx context.Context, userID string, oldPassword, newPassword string) error {
-	user, err := s.userRepo.FindById(ctx, userID)
+	user, err := s.UserRepo.FindById(ctx, userID)
 	if err != nil {
 		return errors.New("用户不存在")
 	}
@@ -131,7 +130,7 @@ func (s *UserService) ChangePassword(ctx context.Context, userID string, oldPass
 		return err
 	}
 
-	if err := s.userRepo.UpdatePassword(ctx, userID, string(hashedPassword)); err != nil {
+	if err := s.UserRepo.UpdatePassword(ctx, userID, string(hashedPassword)); err != nil {
 		return err
 	}
 
@@ -147,7 +146,7 @@ func (s *UserService) ResetPassword(ctx context.Context, userID, newPassword str
 		return err
 	}
 
-	if err := s.userRepo.UpdatePassword(ctx, userID, string(hashedPassword)); err != nil {
+	if err := s.UserRepo.UpdatePassword(ctx, userID, string(hashedPassword)); err != nil {
 		return err
 	}
 
@@ -157,7 +156,7 @@ func (s *UserService) ResetPassword(ctx context.Context, userID, newPassword str
 
 // UpdateUserStatus 更新用户状态
 func (s *UserService) UpdateUserStatus(ctx context.Context, userID string, status int) error {
-	if err := s.userRepo.UpdateStatus(ctx, userID, status); err != nil {
+	if err := s.UserRepo.UpdateStatus(ctx, userID, status); err != nil {
 		return err
 	}
 
@@ -167,7 +166,7 @@ func (s *UserService) UpdateUserStatus(ctx context.Context, userID string, statu
 
 // ValidatePassword 验证密码
 func (s *UserService) ValidatePassword(ctx context.Context, username, password string) (*models.User, error) {
-	user, err := s.userRepo.FindByUsername(ctx, username)
+	user, err := s.UserRepo.FindByUsername(ctx, username)
 	if err != nil {
 		return nil, errors.New("用户名或密码错误")
 	}

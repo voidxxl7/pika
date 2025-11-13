@@ -47,61 +47,61 @@ export interface AgentInfo {
 // 聚合指标数据（所有图表查询只返回聚合数据）
 export interface AggregatedCPUMetric {
     timestamp: number;
-    avgUsage: number;
+    maxUsage: number;
     logicalCores: number;
 }
 
 export interface AggregatedMemoryMetric {
     timestamp: number;
-    avgUsage: number;
+    maxUsage: number;
     total: number;
 }
 
 export interface AggregatedNetworkMetric {
     timestamp: number;
     interface: string;
-    avgSentRate: number;
-    avgRecvRate: number;
+    maxSentRate: number;
+    maxRecvRate: number;
     totalSent: number;
     totalRecv: number;
 }
 
 export interface AggregatedLoadMetric {
     timestamp: number;
-    avgLoad1: number;
-    avgLoad5: number;
-    avgLoad15: number;
+    maxLoad1: number;
+    maxLoad5: number;
+    maxLoad15: number;
 }
 
 export interface AggregatedDiskMetric {
     timestamp: number;
     mountPoint: string;
-    avgUsage: number;
+    maxUsage: number;
     total: number;
 }
 
 export interface AggregatedDiskIOMetric {
     timestamp: number;
     device: string;
-    avgReadRate: number;
-    avgWriteRate: number;
+    maxReadRate: number;
+    maxWriteRate: number;
     totalReadBytes: number;
     totalWriteBytes: number;
 }
 
 export interface AggregatedGPUMetric {
     timestamp: number;
-    avgUtilization: number;
-    avgMemoryUsed: number;
-    avgTemperature: number;
-    avgPowerDraw: number;
+    maxUtilization: number;
+    maxMemoryUsed: number;
+    maxTemperature: number;
+    maxPowerDraw: number;
 }
 
 export interface AggregatedTemperatureMetric {
     timestamp: number;
     sensorKey: string;
     sensorLabel: string;
-    avgTemperature: number;
+    maxTemperature: number;
 }
 
 // 最新实时数据（单点数据，不需要聚合）
@@ -242,6 +242,94 @@ export interface TemperatureMetric {
     sensorKey: string;
     sensorLabel: string;
     temperature: number;
+    timestamp: number;
+}
+
+// 服务监控配置
+export interface MonitorHttpConfig {
+    method?: string;
+    expectedStatusCode?: number;
+    expectedContent?: string;
+    timeout?: number;
+    headers?: Record<string, string>;
+    body?: string;
+}
+
+export interface MonitorTcpConfig {
+    timeout?: number;
+}
+
+export interface MonitorTask {
+    id: number;
+    name: string;
+    type: 'http' | 'https' | 'tcp';
+    target: string;
+    description?: string;
+    enabled: boolean;
+    interval: number;
+    httpConfig?: MonitorHttpConfig | null;
+    tcpConfig?: MonitorTcpConfig | null;
+    agentIds?: string[];
+    createdAt: number;
+    updatedAt: number;
+}
+
+export interface MonitorTaskRequest {
+    name: string;
+    type: 'http' | 'https' | 'tcp';
+    target: string;
+    description?: string;
+    enabled?: boolean;
+    interval: number;
+    httpConfig?: MonitorHttpConfig | null;
+    tcpConfig?: MonitorTcpConfig | null;
+    agentIds?: string[];
+}
+
+export interface MonitorListResponse {
+    items: MonitorTask[];
+    total: number;
+    page: number;
+    pageSize: number;
+}
+
+// 监控统计数据
+export interface MonitorStats {
+    id: number;
+    agentId: string;
+    name: string;
+    type: string;
+    target: string;
+    currentResponse: number;      // 当前响应时间(ms)
+    avgResponse24h: number;       // 24小时平均响应时间(ms)
+    uptime24h: number;            // 24小时在线率(百分比)
+    uptime30d: number;            // 30天在线率(百分比)
+    certExpiryDate: number;       // 证书过期时间(毫秒时间戳)
+    certExpiryDays: number;       // 证书剩余天数
+    totalChecks24h: number;       // 24小时总检测次数
+    successChecks24h: number;     // 24小时成功次数
+    totalChecks30d: number;       // 30天总检测次数
+    successChecks30d: number;     // 30天成功次数
+    lastCheckTime: number;        // 最后检测时间
+    lastCheckStatus: string;      // 最后检测状态: up/down
+    updatedAt: number;            // 更新时间
+}
+
+// 监控指标（原始数据，用于图表）
+export interface MonitorMetric {
+    id: number;
+    agentId: string;
+    name: string;
+    type: string;
+    target: string;
+    status: string;
+    statusCode: number;
+    responseTime: number;
+    error: string;
+    message: string;
+    contentMatch: boolean;
+    certExpiryTime: number;
+    certDaysLeft: number;
     timestamp: number;
 }
 

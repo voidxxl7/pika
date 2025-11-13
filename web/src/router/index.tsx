@@ -13,6 +13,9 @@ const ApiKeyListPage = lazy(() => import('../pages/ApiKeys/ApiKeyList'));
 const SettingsPage = lazy(() => import('../pages/Settings'));
 const ServerListPage = lazy(() => import('../pages/Public/ServerList'));
 const ServerDetailPage = lazy(() => import('../pages/Public/ServerDetail'));
+const PublicMonitorListPage = lazy(() => import('../pages/Public/MonitorList'));
+const PublicMonitorDetailPage = lazy(() => import('../pages/Public/MonitorDetail'));
+const MonitorListPage = lazy(() => import('../pages/Monitors/MonitorList'));
 
 const LoadingFallback = () => (
     <div className="flex min-h-[200px] w-full items-center justify-center text-gray-500">
@@ -40,6 +43,14 @@ const router = createBrowserRouter([
     {
         path: '/servers/:id',
         element: lazyLoad(ServerDetailPage),
+    },
+    {
+        path: '/monitors',
+        element: lazyLoad(PublicMonitorListPage),
+    },
+    {
+        path: '/monitors/:name',
+        element: lazyLoad(PublicMonitorDetailPage),
     },
     // 管理员页面 - 需要登录
     {
@@ -73,6 +84,10 @@ const router = createBrowserRouter([
             {
                 path: 'api-keys',
                 element: lazyLoad(ApiKeyListPage),
+            },
+            {
+                path: 'monitors',
+                element: lazyLoad(MonitorListPage),
             },
             {
                 path: 'users',

@@ -35,7 +35,7 @@ func (r ApiKeyHandler) Paging(c echo.Context) error {
 
 	pr := orz.GetPageRequest(c, "created_at", "name")
 
-	builder := orz.NewPageBuilder(r.apiKeyService.Repository).
+	builder := orz.NewPageBuilder(r.apiKeyService.ApiKeyRepo).
 		PageRequest(pr).
 		Contains("name", name)
 

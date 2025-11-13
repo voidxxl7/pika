@@ -28,9 +28,6 @@ type Config struct {
 
 	// 自动更新配置
 	AutoUpdate AutoUpdateConfig `yaml:"auto_update"`
-
-	// 监控配置
-	Monitor MonitorConfig `yaml:"monitor"`
 }
 
 // ServerConfig 服务器配置
@@ -73,65 +70,6 @@ type AutoUpdateConfig struct {
 	CheckInterval string `yaml:"check_interval"`
 }
 
-// MonitorConfig 监控配置
-type MonitorConfig struct {
-	// 是否启用监控功能
-	Enabled bool `yaml:"enabled"`
-
-	// 检测间隔（秒），默认 60 秒
-	Interval int `yaml:"interval"`
-
-	// 监控项列表
-	Items []MonitorItem `yaml:"items"`
-}
-
-// MonitorItem 监控项
-type MonitorItem struct {
-	// 监控项名称
-	Name string `yaml:"name"`
-
-	// 监控类型: http, tcp
-	Type string `yaml:"type"`
-
-	// 目标地址
-	// HTTP: 完整的 URL (如: https://example.com/api/health)
-	// TCP: 地址:端口 (如: example.com:3306)
-	Target string `yaml:"target"`
-
-	// HTTP 特定配置
-	HTTPConfig *HTTPMonitorConfig `yaml:"http_config,omitempty"`
-
-	// TCP 特定配置
-	TCPConfig *TCPMonitorConfig `yaml:"tcp_config,omitempty"`
-}
-
-// HTTPMonitorConfig HTTP 监控配置
-type HTTPMonitorConfig struct {
-	// HTTP 方法: GET, POST, PUT, DELETE 等，默认 GET
-	Method string `yaml:"method"`
-
-	// 期望的状态码，默认 200
-	ExpectedStatusCode int `yaml:"expected_status_code"`
-
-	// 期望的响应内容（关键字）
-	ExpectedContent string `yaml:"expected_content,omitempty"`
-
-	// 请求超时（秒），默认 60
-	Timeout int `yaml:"timeout"`
-
-	// 请求头
-	Headers map[string]string `yaml:"headers,omitempty"`
-
-	// 请求体
-	Body string `yaml:"body,omitempty"`
-}
-
-// TCPMonitorConfig TCP 监控配置
-type TCPMonitorConfig struct {
-	// 连接超时（秒），默认 5
-	Timeout int `yaml:"timeout"`
-}
-
 // DefaultConfig 返回默认配置
 func DefaultConfig() *Config {
 	return &Config{
@@ -150,11 +88,6 @@ func DefaultConfig() *Config {
 		AutoUpdate: AutoUpdateConfig{
 			Enabled:       true,
 			CheckInterval: "10m",
-		},
-		Monitor: MonitorConfig{
-			Enabled:  false,
-			Interval: 60,
-			Items:    []MonitorItem{},
 		},
 	}
 }
@@ -356,12 +289,4 @@ func (c *Config) ShouldExcludeNetworkInterface(interfaceName string) bool {
 	}
 
 	return false
-}
-
-// GetMonitorInterval 获取监控检测间隔时长
-func (c *Config) GetMonitorInterval() time.Duration {
-	if c.Monitor.Interval <= 0 {
-		return 60 * time.Second // 默认 60 秒
-	}
-	return time.Duration(c.Monitor.Interval) * time.Second
 }

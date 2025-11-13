@@ -9,6 +9,7 @@ import (
 	"github.com/dushixiang/pika/internal/models"
 	"github.com/dushixiang/pika/internal/repo"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 const (
@@ -21,9 +22,9 @@ type PropertyService struct {
 	logger *zap.Logger
 }
 
-func NewPropertyService(repo *repo.PropertyRepo, logger *zap.Logger) *PropertyService {
+func NewPropertyService(logger *zap.Logger, db *gorm.DB) *PropertyService {
 	return &PropertyService{
-		repo:   repo,
+		repo:   repo.NewPropertyRepo(db),
 		logger: logger,
 	}
 }

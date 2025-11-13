@@ -11,17 +11,15 @@ import (
 	"time"
 
 	"github.com/dushixiang/pika/internal/protocol"
-	"github.com/dushixiang/pika/pkg/agent/config"
 )
 
 // MonitorCollector 监控采集器
 type MonitorCollector struct {
-	cfg        *config.Config
 	httpClient *http.Client
 }
 
 // NewMonitorCollector 创建监控采集器
-func NewMonitorCollector(cfg *config.Config) *MonitorCollector {
+func NewMonitorCollector() *MonitorCollector {
 	// 创建自定义的 HTTP 客户端，支持跳过 TLS 验证
 	httpClient := &http.Client{
 		Transport: &http.Transport{
@@ -40,24 +38,19 @@ func NewMonitorCollector(cfg *config.Config) *MonitorCollector {
 	}
 
 	return &MonitorCollector{
-		cfg:        cfg,
 		httpClient: httpClient,
 	}
 }
 
 // Collect 采集所有监控项数据
-func (c *MonitorCollector) Collect() ([]protocol.MonitorData, error) {
-	if !c.cfg.Monitor.Enabled {
-		return nil, nil
+func (c *MonitorCollector) Collect(items []protocol.MonitorItem) []protocol.MonitorData {
+	if len(items) == 0 {
+		return nil
 	}
 
-	if len(c.cfg.Monitor.Items) == 0 {
-		return nil, nil
-	}
+	results := make([]protocol.MonitorData, 0, len(items))
 
-	results := make([]protocol.MonitorData, 0, len(c.cfg.Monitor.Items))
-
-	for _, item := range c.cfg.Monitor.Items {
+	for _, item := range items {
 		var result protocol.MonitorData
 
 		switch strings.ToLower(item.Type) {
@@ -79,11 +72,11 @@ func (c *MonitorCollector) Collect() ([]protocol.MonitorData, error) {
 		results = append(results, result)
 	}
 
-	return results, nil
+	return results
 }
 
 // checkHTTP 检查 HTTP/HTTPS 服务
-func (c *MonitorCollector) checkHTTP(item config.MonitorItem) protocol.MonitorData {
+func (c *MonitorCollector) checkHTTP(item protocol.MonitorItem) protocol.MonitorData {
 	result := protocol.MonitorData{
 		Name:      item.Name,
 		Type:      item.Type,
@@ -94,7 +87,7 @@ func (c *MonitorCollector) checkHTTP(item config.MonitorItem) protocol.MonitorDa
 	// 获取配置，使用默认值
 	httpCfg := item.HTTPConfig
 	if httpCfg == nil {
-		httpCfg = &config.HTTPMonitorConfig{
+		httpCfg = &protocol.HTTPMonitorConfig{
 			Method:             "GET",
 			ExpectedStatusCode: 200,
 			Timeout:            60,
@@ -184,6 +177,20 @@ func (c *MonitorCollector) checkHTTP(item config.MonitorItem) protocol.MonitorDa
 		result.ContentMatch = true
 	}
 
+	// 获取 HTTPS 证书信息
+	if resp.TLS != nil && len(resp.TLS.PeerCertificates) > 0 {
+		// 获取第一个证书（服务器证书）
+		cert := resp.TLS.PeerCertificates[0]
+
+		// 证书过期时间
+		expiryTime := cert.NotAfter
+		result.CertExpiryTime = expiryTime.UnixMilli()
+
+		// 计算剩余天数
+		daysLeft := int(time.Until(expiryTime).Hours() / 24)
+		result.CertDaysLeft = daysLeft
+	}
+
 	// 检查成功
 	result.Status = "up"
 	result.Message = fmt.Sprintf("HTTP %d - %dms", resp.StatusCode, responseTime)
@@ -191,7 +198,7 @@ func (c *MonitorCollector) checkHTTP(item config.MonitorItem) protocol.MonitorDa
 }
 
 // checkTCP 检查 TCP 端口
-func (c *MonitorCollector) checkTCP(item config.MonitorItem) protocol.MonitorData {
+func (c *MonitorCollector) checkTCP(item protocol.MonitorItem) protocol.MonitorData {
 	result := protocol.MonitorData{
 		Name:      item.Name,
 		Type:      item.Type,

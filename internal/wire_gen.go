@@ -9,7 +9,6 @@ package internal
 import (
 	"github.com/dushixiang/pika/internal/config"
 	"github.com/dushixiang/pika/internal/handler"
-	"github.com/dushixiang/pika/internal/repo"
 	"github.com/dushixiang/pika/internal/service"
 	"github.com/dushixiang/pika/internal/websocket"
 	"go.uber.org/zap"
@@ -20,26 +19,22 @@ import (
 
 // InitializeApp 初始化应用
 func InitializeApp(logger *zap.Logger, db *gorm.DB, cfg *config.AppConfig) (*AppComponents, error) {
-	userRepo := repo.NewUserRepo(db)
-	userService := service.NewUserService(logger, userRepo)
-	accountService := provideAccountService(logger, userService, cfg)
+	userService := service.NewUserService(logger, db)
+	accountService := service.NewAccountService(logger, userService, cfg)
 	accountHandler := handler.NewAccountHandler(accountService)
-	agentRepo := repo.NewAgentRepo(db)
-	metricRepo := repo.NewMetricRepo(db)
-	apiKeyRepo := provideApiKeyRepo(db)
-	apiKeyService := provideApiKeyService(logger, apiKeyRepo)
-	agentService := provideAgentService(logger, agentRepo, metricRepo, apiKeyService)
+	apiKeyService := service.NewApiKeyService(logger, db)
+	agentService := service.NewAgentService(logger, db, apiKeyService)
 	manager := websocket.NewManager(logger)
-	agentHandler := provideAgentHandler(logger, agentService, manager, cfg)
+	monitorService := service.NewMonitorService(logger, db, manager)
+	agentHandler := handler.NewAgentHandler(logger, agentService, monitorService, manager)
 	userHandler := handler.NewUserHandler(userService)
-	apiKeyHandler := provideApiKeyHandler(logger, apiKeyService)
-	alertRepo := provideAlertRepo(db)
-	propertyRepo := providePropertyRepo(db)
-	propertyService := providePropertyService(propertyRepo, logger)
-	notifier := provideNotifier(logger)
-	alertService := provideAlertService(alertRepo, agentRepo, propertyService, notifier, logger)
-	alertHandler := provideAlertHandler(logger, alertService)
-	propertyHandler := providePropertyHandler(logger, propertyService, notifier)
+	apiKeyHandler := handler.NewApiKeyHandler(logger, apiKeyService)
+	propertyService := service.NewPropertyService(logger, db)
+	notifier := service.NewNotifier(logger)
+	alertService := service.NewAlertService(logger, db, propertyService, notifier)
+	alertHandler := handler.NewAlertHandler(logger, alertService)
+	propertyHandler := handler.NewPropertyHandler(logger, propertyService, notifier)
+	monitorHandler := handler.NewMonitorHandler(logger, monitorService)
 	appComponents := &AppComponents{
 		AccountHandler:  accountHandler,
 		AgentHandler:    agentHandler,
@@ -47,10 +42,13 @@ func InitializeApp(logger *zap.Logger, db *gorm.DB, cfg *config.AppConfig) (*App
 		ApiKeyHandler:   apiKeyHandler,
 		AlertHandler:    alertHandler,
 		PropertyHandler: propertyHandler,
+		MonitorHandler:  monitorHandler,
 		AgentService:    agentService,
 		UserService:     userService,
 		AlertService:    alertService,
 		PropertyService: propertyService,
+		MonitorService:  monitorService,
+		ApiKeyService:   apiKeyService,
 		WSManager:       manager,
 	}
 	return appComponents, nil
@@ -66,9 +64,14 @@ type AppComponents struct {
 	ApiKeyHandler   *handler.ApiKeyHandler
 	AlertHandler    *handler.AlertHandler
 	PropertyHandler *handler.PropertyHandler
+	MonitorHandler  *handler.MonitorHandler
+
 	AgentService    *service.AgentService
 	UserService     *service.UserService
 	AlertService    *service.AlertService
 	PropertyService *service.PropertyService
-	WSManager       *websocket.Manager
+	MonitorService  *service.MonitorService
+	ApiKeyService   *service.ApiKeyService
+
+	WSManager *websocket.Manager
 }

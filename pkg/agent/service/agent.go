@@ -53,9 +53,13 @@ func (sc *safeConn) Close() error {
 
 // Agent 探针服务
 type Agent struct {
-	cfg    *config.Config
-	idMgr  *id.Manager
-	cancel context.CancelFunc
+	cfg              *config.Config
+	idMgr            *id.Manager
+	cancel           context.CancelFunc
+	connMu           sync.RWMutex
+	activeConn       *safeConn
+	collectorMu      sync.RWMutex
+	collectorManager *collector.Manager
 }
 
 // New 创建 Agent 实例
@@ -157,9 +161,16 @@ func (a *Agent) runOnce(ctx context.Context) error {
 	// 创建采集器管理器
 	collectorManager := collector.NewManager(a.cfg)
 
+	a.setActiveConn(conn)
+	a.setCollectorManager(collectorManager)
+	defer func() {
+		a.setCollectorManager(nil)
+		a.setActiveConn(nil)
+	}()
+
 	// 创建完成通道
 	done := make(chan struct{})
-	errChan := make(chan error, 4)
+	errChan := make(chan error, 3)
 
 	// 启动读取循环（处理服务端的 Ping/Pong 等控制消息）
 	go func() {
@@ -178,13 +189,6 @@ func (a *Agent) runOnce(ctx context.Context) error {
 	go func() {
 		if err := a.metricsLoop(ctx, conn, collectorManager, done); err != nil {
 			errChan <- fmt.Errorf("数据采集失败: %w", err)
-		}
-	}()
-
-	// 启动监控检测循环
-	go func() {
-		if err := a.monitorLoop(ctx, conn, collectorManager, done); err != nil {
-			errChan <- fmt.Errorf("监控检测失败: %w", err)
 		}
 	}()
 
@@ -233,9 +237,13 @@ func (a *Agent) readLoop(conn *websocket.Conn, done chan struct{}) error {
 			continue
 		}
 
-		// 处理指令消息
-		if msg.Type == protocol.MessageTypeCommand {
-			go a.handleCommand(conn, msg.Data)
+		switch msg.Type {
+		case protocol.MessageTypeCommand:
+			go a.handleCommand(msg.Data)
+		case protocol.MessageTypeMonitorConfig:
+			go a.handleMonitorConfig(msg.Data)
+		default:
+			// 忽略其他类型
 		}
 	}
 }
@@ -316,6 +324,35 @@ func (a *Agent) registerAgent(conn *safeConn) error {
 	return nil
 }
 
+func (a *Agent) handleMonitorConfig(data json.RawMessage) {
+	var payload protocol.MonitorConfigPayload
+	if err := json.Unmarshal(data, &payload); err != nil {
+		log.Printf("⚠️  解析监控配置失败: %v", err)
+		return
+	}
+
+	if len(payload.Items) == 0 {
+		log.Println("ℹ️  收到空的服务监控配置，跳过")
+		return
+	}
+
+	conn := a.getActiveConn()
+	manager := a.getCollectorManager()
+	if conn == nil || manager == nil {
+		log.Println("⚠️  当前连接未就绪，无法执行服务监控任务")
+		return
+	}
+
+	log.Printf("📥 收到服务监控配置，总计 %d 个监控项，立即执行检测", len(payload.Items))
+
+	// 立即执行一次监控检测
+	if err := manager.CollectAndSendMonitor(conn, payload.Items); err != nil {
+		log.Printf("⚠️  监控检测失败: %v", err)
+	} else {
+		log.Printf("✅ 服务监控检测完成，已上报 %d 个监控项结果", len(payload.Items))
+	}
+}
+
 // heartbeatLoop 心跳循环
 func (a *Agent) heartbeatLoop(ctx context.Context, conn *safeConn, done chan struct{}) error {
 	ticker := time.NewTicker(a.cfg.GetHeartbeatInterval())
@@ -338,6 +375,30 @@ func (a *Agent) heartbeatLoop(ctx context.Context, conn *safeConn, done chan str
 			return nil
 		}
 	}
+}
+
+func (a *Agent) setActiveConn(conn *safeConn) {
+	a.connMu.Lock()
+	defer a.connMu.Unlock()
+	a.activeConn = conn
+}
+
+func (a *Agent) getActiveConn() *safeConn {
+	a.connMu.RLock()
+	defer a.connMu.RUnlock()
+	return a.activeConn
+}
+
+func (a *Agent) setCollectorManager(manager *collector.Manager) {
+	a.collectorMu.Lock()
+	defer a.collectorMu.Unlock()
+	a.collectorManager = manager
+}
+
+func (a *Agent) getCollectorManager() *collector.Manager {
+	a.collectorMu.RLock()
+	defer a.collectorMu.RUnlock()
+	return a.collectorManager
 }
 
 // metricsLoop 指标采集循环
@@ -434,47 +495,8 @@ func (a *Agent) collectAndSendAllMetrics(conn *safeConn, manager *collector.Mana
 	return nil
 }
 
-// monitorLoop 监控检测循环
-func (a *Agent) monitorLoop(ctx context.Context, conn *safeConn, manager *collector.Manager, done chan struct{}) error {
-	// 如果监控未启用，直接返回
-	if !a.cfg.Monitor.Enabled {
-		log.Println("ℹ️  监控功能未启用")
-		return nil
-	}
-
-	if len(a.cfg.Monitor.Items) == 0 {
-		log.Println("ℹ️  没有配置监控项")
-		return nil
-	}
-
-	log.Printf("🔍 监控功能已启用，共 %d 个监控项", len(a.cfg.Monitor.Items))
-
-	// 立即执行一次监控检测
-	if err := manager.CollectAndSendMonitor(conn); err != nil {
-		log.Printf("⚠️  初始监控检测失败: %v", err)
-	}
-
-	// 定时监控检测
-	ticker := time.NewTicker(a.cfg.GetMonitorInterval())
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			// 采集并发送监控数据
-			if err := manager.CollectAndSendMonitor(conn); err != nil {
-				log.Printf("⚠️  监控检测失败: %v", err)
-			}
-		case <-done:
-			return nil
-		case <-ctx.Done():
-			return nil
-		}
-	}
-}
-
 // handleCommand 处理服务端下发的指令
-func (a *Agent) handleCommand(conn *websocket.Conn, data json.RawMessage) {
+func (a *Agent) handleCommand(data json.RawMessage) {
 	var cmdReq protocol.CommandRequest
 	if err := json.Unmarshal(data, &cmdReq); err != nil {
 		log.Printf("⚠️  解析指令失败: %v", err)
@@ -483,6 +505,7 @@ func (a *Agent) handleCommand(conn *websocket.Conn, data json.RawMessage) {
 
 	log.Printf("📥 收到指令: %s (ID: %s)", cmdReq.Type, cmdReq.ID)
 
+	conn := a.getActiveConn()
 	// 发送运行中状态
 	a.sendCommandResponse(conn, cmdReq.ID, cmdReq.Type, "running", "", "")
 
@@ -496,7 +519,7 @@ func (a *Agent) handleCommand(conn *websocket.Conn, data json.RawMessage) {
 }
 
 // handleVPSAudit 处理VPS安全审计指令
-func (a *Agent) handleVPSAudit(conn *websocket.Conn, cmdID string) {
+func (a *Agent) handleVPSAudit(conn *safeConn, cmdID string) {
 	// 导入 audit 包
 	result, err := a.runVPSAudit()
 	if err != nil {
@@ -523,7 +546,7 @@ func (a *Agent) runVPSAudit() (*protocol.VPSAuditResult, error) {
 }
 
 // sendCommandResponse 发送指令响应
-func (a *Agent) sendCommandResponse(conn *websocket.Conn, cmdID, cmdType, status, errMsg, result string) {
+func (a *Agent) sendCommandResponse(conn *safeConn, cmdID, cmdType, status, errMsg, result string) {
 	resp := protocol.CommandResponse{
 		ID:     cmdID,
 		Type:   cmdType,

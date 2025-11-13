@@ -179,18 +179,20 @@ func (DockerMetric) TableName() string {
 
 // MonitorMetric 监控指标
 type MonitorMetric struct {
-	ID           uint   `gorm:"primaryKey;autoIncrement" json:"id"`
-	AgentID      string `gorm:"index:idx_agent_name_time;index:idx_agent_time" json:"agentId"`                  // 探针ID
-	Name         string `gorm:"index:idx_agent_name_time;index" json:"name"`                                    // 监控项名称
-	Type         string `json:"type"`                                                                           // 监控类型: http, tcp
-	Target       string `json:"target"`                                                                         // 监控目标
-	Status       string `json:"status"`                                                                         // 状态: up, down
-	StatusCode   int    `json:"statusCode"`                                                                     // HTTP状态码
-	ResponseTime int64  `json:"responseTime"`                                                                   // 响应时间(毫秒)
-	Error        string `json:"error"`                                                                          // 错误信息
-	Message      string `json:"message"`                                                                        // 附加信息
-	ContentMatch bool   `json:"contentMatch"`                                                                   // 内容匹配结果
-	Timestamp    int64  `gorm:"index:idx_agent_name_time;index:idx_agent_time;index:idx_time" json:"timestamp"` // 时间戳（毫秒）
+	ID             uint   `gorm:"primaryKey;autoIncrement" json:"id"`
+	AgentID        string `gorm:"index:idx_agent_name_time;index:idx_agent_time" json:"agentId"`                  // 探针ID
+	Name           string `gorm:"index:idx_agent_name_time;index" json:"name"`                                    // 监控项名称
+	Type           string `json:"type"`                                                                           // 监控类型: http, tcp
+	Target         string `json:"target"`                                                                         // 监控目标
+	Status         string `json:"status"`                                                                         // 状态: up, down
+	StatusCode     int    `json:"statusCode"`                                                                     // HTTP状态码
+	ResponseTime   int64  `json:"responseTime"`                                                                   // 响应时间(毫秒)
+	Error          string `json:"error"`                                                                          // 错误信息
+	Message        string `json:"message"`                                                                        // 附加信息
+	ContentMatch   bool   `json:"contentMatch"`                                                                   // 内容匹配结果
+	CertExpiryTime int64  `json:"certExpiryTime"`                                                                 // 证书过期时间(毫秒时间戳), 0表示无证书
+	CertDaysLeft   int    `json:"certDaysLeft"`                                                                   // 证书剩余天数
+	Timestamp      int64  `gorm:"index:idx_agent_name_time;index:idx_agent_time;index:idx_time" json:"timestamp"` // 时间戳（毫秒）
 }
 
 func (MonitorMetric) TableName() string {

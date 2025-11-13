@@ -1,0 +1,31 @@
+package protocol
+
+// MonitorConfigPayload 监控配置 payload
+type MonitorConfigPayload struct {
+	Interval int           `json:"interval"`
+	Items    []MonitorItem `json:"items"`
+}
+
+// MonitorItem 监控项配置
+type MonitorItem struct {
+	Name       string             `json:"name"`
+	Type       string             `json:"type"`
+	Target     string             `json:"target"`
+	HTTPConfig *HTTPMonitorConfig `json:"httpConfig,omitempty"`
+	TCPConfig  *TCPMonitorConfig  `json:"tcpConfig,omitempty"`
+}
+
+// HTTPMonitorConfig HTTP 监控配置
+type HTTPMonitorConfig struct {
+	Method             string            `json:"method"`
+	ExpectedStatusCode int               `json:"expectedStatusCode"`
+	ExpectedContent    string            `json:"expectedContent,omitempty"`
+	Timeout            int               `json:"timeout"`
+	Headers            map[string]string `json:"headers,omitempty"`
+	Body               string            `json:"body,omitempty"`
+}
+
+// TCPMonitorConfig TCP 监控配置
+type TCPMonitorConfig struct {
+	Timeout int `json:"timeout"`
+}

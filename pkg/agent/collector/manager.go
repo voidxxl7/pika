@@ -40,7 +40,7 @@ func NewManager(cfg *config.Config) *Manager {
 		temperatureCollector: NewTemperatureCollector(),
 		gpuCollector:         NewGPUCollector(),
 		dockerCollector:      NewDockerCollector(),
-		monitorCollector:     NewMonitorCollector(cfg),
+		monitorCollector:     NewMonitorCollector(),
 	}
 }
 
@@ -144,13 +144,8 @@ func (m *Manager) CollectAndSendDocker(conn WebSocketWriter) error {
 }
 
 // CollectAndSendMonitor 采集并发送监控数据
-func (m *Manager) CollectAndSendMonitor(conn WebSocketWriter) error {
-	monitorDataList, err := m.monitorCollector.Collect()
-	if err != nil || len(monitorDataList) == 0 {
-		// 监控不是必须的,失败或无数据时直接返回
-		return nil
-	}
-
+func (m *Manager) CollectAndSendMonitor(conn WebSocketWriter, items []protocol.MonitorItem) error {
+	monitorDataList := m.monitorCollector.Collect(items)
 	return m.sendMetrics(conn, protocol.MetricTypeMonitor, monitorDataList)
 }
 

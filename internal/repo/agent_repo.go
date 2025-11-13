@@ -140,3 +140,15 @@ func (r *AgentRepo) GetStatistics(ctx context.Context) (total int64, online int6
 
 	return total, online, err
 }
+
+// ListByIDs 根据ID列表获取探针
+func (r *AgentRepo) ListByIDs(ctx context.Context, ids []string) ([]models.Agent, error) {
+	var agents []models.Agent
+	if len(ids) == 0 {
+		return agents, nil
+	}
+	err := r.db.WithContext(ctx).
+		Where("id IN ?", ids).
+		Find(&agents).Error
+	return agents, err
+}

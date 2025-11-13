@@ -67,11 +67,10 @@ const AgentList = () => {
             dataIndex: 'name',
             key: 'name',
             hideInSearch: true,
-            width: 280,
             fixed: 'left',
             render: (_, record) => (
-                <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium">{record.name || record.hostname}</span>
+                <div className="space-y-1">
+                    <div className="font-medium">{record.name || record.hostname}</div>
                     <Tag color="geekblue" bordered={false}>{record.os} · {record.arch}</Tag>
                 </div>
             ),
@@ -107,11 +106,11 @@ const AgentList = () => {
                     <div className="flex flex-col gap-1">
                         <div>{expireDate.toLocaleDateString('zh-CN')}</div>
                         {isExpired ? (
-                            <Tag color="red">已过期</Tag>
+                            <Tag color="red" bordered={false}>已过期</Tag>
                         ) : daysLeft <= 7 ? (
-                            <Tag color="orange">{daysLeft}天后到期</Tag>
+                            <Tag color="orange" bordered={false}>{daysLeft}天后到期</Tag>
                         ) : daysLeft <= 30 ? (
-                            <Tag color="gold">{daysLeft}天后到期</Tag>
+                            <Tag color="gold" bordered={false}>{daysLeft}天后到期</Tag>
                         ) : null}
                     </div>
                 );
@@ -140,8 +139,6 @@ const AgentList = () => {
             title: 'IP 地址',
             dataIndex: 'ip',
             key: 'ip',
-            copyable: true,
-            width: 140,
         },
         {
             title: '状态筛选',
@@ -157,7 +154,6 @@ const AgentList = () => {
             title: '版本',
             dataIndex: 'version',
             key: 'version',
-            width: 100,
         },
         {
             title: '最后活跃时间',

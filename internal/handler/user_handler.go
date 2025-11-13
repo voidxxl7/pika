@@ -32,7 +32,7 @@ func (r UserHandler) Paging(c echo.Context) error {
 
 	pr := orz.GetPageRequest(c, "created_at", "username")
 
-	builder := orz.NewPageBuilder(r.userService.Repository).
+	builder := orz.NewPageBuilder(r.userService.UserRepo).
 		PageRequest(pr).
 		Contains("username", username)
 

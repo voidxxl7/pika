@@ -10,6 +10,7 @@ import (
 	"github.com/dushixiang/pika/internal/config"
 	"github.com/dushixiang/pika/internal/handler"
 	"github.com/dushixiang/pika/internal/models"
+	"github.com/dushixiang/pika/internal/scheduler"
 	"github.com/dushixiang/pika/internal/service"
 	"github.com/dushixiang/pika/web"
 	"github.com/google/uuid"
@@ -80,6 +81,13 @@ func setup(app *orz.App) error {
 	// 启动指标监控任务（用于告警检测）
 	go startMetricsMonitoring(ctx, components, app.Logger())
 
+	// 启动服务监控任务调度器
+	monitorScheduler := scheduler.NewMonitorScheduler(components.MonitorService, app.Logger(), 10)
+	monitorScheduler.Start(ctx)
+
+	// 启动监控统计计算任务
+	go startMonitorStatsCalculation(ctx, components, app.Logger())
+
 	// 设置API
 	setupApi(app, components)
 
@@ -134,6 +142,11 @@ func setupApi(app *orz.App, components *AppComponents) {
 		// Agent 版本和下载
 		publicApi.GET("/agent/version", components.AgentHandler.GetAgentVersion)
 		publicApi.GET("/agent/downloads/:filename", components.AgentHandler.DownloadAgent)
+
+		// 监控统计数据（公开访问）- 用于公共展示页面
+		publicApi.GET("/monitors/stats", components.MonitorHandler.GetAllStats)
+		publicApi.GET("/monitors/:name/stats", components.MonitorHandler.GetStatsByName)
+		publicApi.GET("/monitors/:name/history", components.MonitorHandler.GetHistoryByName)
 	}
 
 	// WebSocket 路由（探针连接）
@@ -186,6 +199,13 @@ func setupApi(app *orz.App, components *AppComponents) {
 		// 告警记录查询
 		adminApi.GET("/alert-records", components.AlertHandler.ListAlertRecords)
 
+		// 服务监控配置
+		adminApi.GET("/monitors", components.MonitorHandler.List)
+		adminApi.POST("/monitors", components.MonitorHandler.Create)
+		adminApi.GET("/monitors/:id", components.MonitorHandler.Get)
+		adminApi.PUT("/monitors/:id", components.MonitorHandler.Update)
+		adminApi.DELETE("/monitors/:id", components.MonitorHandler.Delete)
+
 		// 用户管理
 		adminApi.GET("/users", components.UserHandler.Paging)
 		adminApi.POST("/users", components.UserHandler.Create)
@@ -219,6 +239,8 @@ func autoMigrate(database *gorm.DB) error {
 		&models.AlertConfig{},
 		&models.AlertRecord{},
 		&models.MonitorMetric{},
+		&models.MonitorTask{},
+		&models.MonitorStats{},
 	)
 }
 
@@ -364,6 +386,35 @@ func startMetricsMonitoring(ctx context.Context, components *AppComponents, logg
 	}
 }
 
+// startMonitorStatsCalculation 启动监控统计计算任务
+func startMonitorStatsCalculation(ctx context.Context, components *AppComponents, logger *zap.Logger) {
+	logger.Info("启动监控统计计算任务")
+
+	ticker := time.NewTicker(5 * time.Minute) // 每5分钟计算一次统计数据
+	defer ticker.Stop()
+
+	// 首次启动时立即计算一次
+	if err := components.MonitorService.CalculateMonitorStats(ctx); err != nil {
+		logger.Error("计算监控统计数据失败", zap.Error(err))
+	} else {
+		logger.Info("监控统计数据计算完成")
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			logger.Info("监控统计计算任务已停止")
+			return
+		case <-ticker.C:
+			if err := components.MonitorService.CalculateMonitorStats(ctx); err != nil {
+				logger.Error("计算监控统计数据失败", zap.Error(err))
+			} else {
+				logger.Debug("监控统计数据计算完成")
+			}
+		}
+	}
+}
+
 // JWTAuthMiddleware JWT 认证中间件
 func JWTAuthMiddleware(accountHandler *handler.AccountHandler) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
@@ -396,3 +447,5 @@ func JWTAuthMiddleware(accountHandler *handler.AccountHandler) echo.MiddlewareFu
 		}
 	}
 }
+
+// APIKeyAuthMiddleware 使用 API Key 进行认证

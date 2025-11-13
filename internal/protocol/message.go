@@ -48,7 +48,8 @@ const (
 	MessageTypeCommand     MessageType = "command"
 	MessageTypeCommandResp MessageType = "command_response"
 	// 指标消息
-	MessageTypeMetrics MessageType = "metrics"
+	MessageTypeMetrics       MessageType = "metrics"
+	MessageTypeMonitorConfig MessageType = "monitor_config"
 )
 
 type MetricType string
@@ -276,4 +277,7 @@ type MonitorData struct {
 	CheckedAt    int64  `json:"checkedAt"`              // 检测时间(毫秒时间戳)
 	Message      string `json:"message,omitempty"`      // 附加信息
 	ContentMatch bool   `json:"contentMatch,omitempty"` // 内容匹配结果
+	// TLS 证书信息（仅用于 HTTPS）
+	CertExpiryTime int64 `json:"certExpiryTime,omitempty"` // 证书过期时间(毫秒时间戳)
+	CertDaysLeft   int   `json:"certDaysLeft,omitempty"`   // 证书剩余天数
 }

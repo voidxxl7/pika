@@ -25,15 +25,17 @@ import (
 type AgentHandler struct {
 	logger       *zap.Logger
 	agentService *service.AgentService
+	monitorSvc   *service.MonitorService
 	wsManager    *ws.Manager
 	upgrader     websocket.Upgrader
 }
 
-func NewAgentHandler(logger *zap.Logger, agentService *service.AgentService, wsManager *ws.Manager) *AgentHandler {
+func NewAgentHandler(logger *zap.Logger, agentService *service.AgentService, monitorService *service.MonitorService, wsManager *ws.Manager) *AgentHandler {
 
 	h := &AgentHandler{
 		logger:       logger,
 		agentService: agentService,
+		monitorSvc:   monitorService,
 		wsManager:    wsManager,
 	}
 
@@ -210,7 +212,7 @@ func (h *AgentHandler) Paging(c echo.Context) error {
 
 	pr := orz.GetPageRequest(c, "last_seen_at", "hostname")
 
-	builder := orz.NewPageBuilder(h.agentService.Repository).
+	builder := orz.NewPageBuilder(h.agentService.AgentRepo).
 		PageRequest(pr).
 		Contains("hostname", hostname).
 		Contains("ip", ip)
@@ -285,20 +287,18 @@ func (h *AgentHandler) GetMetrics(c echo.Context) error {
 	}
 
 	switch rangeParam {
+	case "1m":
+		start = end - 1*60*1000
+	case "5m":
+		start = end - 5*60*1000
+	case "15m":
+		start = end - 15*60*1000
+	case "30m":
+		start = end - 30*60*1000
 	case "1h":
-		start = end - 1*60*60*1000
-	case "6h":
-		start = end - 6*60*60*1000
-	case "12h":
-		start = end - 12*60*60*1000
-	case "24h", "1d":
-		start = end - 24*60*60*1000
-	case "3d":
-		start = end - 3*24*60*60*1000
-	case "7d", "1w":
-		start = end - 7*24*60*60*1000
+		start = end - 60*60*1000
 	default:
-		return orz.NewError(400, "无效的时间范围，支持: 1h, 6h, 12h, 24h, 3d, 7d, 30d, 90d")
+		return orz.NewError(400, "无效的时间范围，支持: 1m, 5m, 15m, 30m, 1h")
 	}
 
 	// 服务端自动计算最优聚合间隔
@@ -582,22 +582,18 @@ func (h *AgentHandler) GetMonitorMetrics(c echo.Context) error {
 	}
 
 	switch rangeParam {
+	case "1m":
+		start = end - 1*60*1000
+	case "5m":
+		start = end - 5*60*1000
+	case "15m":
+		start = end - 15*60*1000
+	case "30m":
+		start = end - 30*60*1000
 	case "1h":
-		start = end - 1*60*60*1000
-	case "6h":
-		start = end - 6*60*60*1000
-	case "12h":
-		start = end - 12*60*60*1000
-	case "24h", "1d":
-		start = end - 24*60*60*1000
-	case "3d":
-		start = end - 3*24*60*60*1000
-	case "7d", "1w":
-		start = end - 7*24*60*60*1000
-	case "30d", "1M":
-		start = end - 30*24*60*60*1000
+		start = end - 60*60*1000
 	default:
-		return orz.NewError(400, "无效的时间范围，支持: 1h, 6h, 12h, 24h, 3d, 7d, 30d")
+		return orz.NewError(400, "无效的时间范围，支持: 1m, 5m, 15m, 30m, 1h")
 	}
 
 	metrics, err := h.agentService.GetMonitorMetrics(ctx, agentID, monitorName, start, end)

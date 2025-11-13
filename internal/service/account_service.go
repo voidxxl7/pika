@@ -4,13 +4,17 @@ import (
 	"context"
 	"time"
 
+	"github.com/dushixiang/pika/internal/config"
 	"github.com/dushixiang/pika/internal/models"
 	"github.com/go-errors/errors"
 	"github.com/golang-jwt/jwt/v5"
 	"go.uber.org/zap"
 )
 
-func NewAccountService(logger *zap.Logger, userService *UserService, jwtSecret string, tokenExpireHours int) *AccountService {
+func NewAccountService(logger *zap.Logger, userService *UserService, appConfig *config.AppConfig) *AccountService {
+	jwtSecret := appConfig.JWT.Secret
+	tokenExpireHours := appConfig.JWT.ExpiresHours
+
 	if jwtSecret == "" {
 		logger.Fatal("JWT secret cannot be empty")
 	}

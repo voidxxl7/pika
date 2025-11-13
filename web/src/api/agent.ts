@@ -9,7 +9,7 @@ export interface ListAgentsResponse {
 export interface GetAgentMetricsRequest {
     agentId: string;
     type: 'cpu' | 'memory' | 'disk' | 'network' | 'load' | 'disk_io' | 'gpu' | 'temperature';
-    range?: '1h' | '6h' | '12h' | '24h' | '1d' | '3d' | '7d' | '1w' | '30d' | '1M' | '90d' | '3M';
+    range?: '1m' | '5m' | '15m' | '30m' | '1h';
 }
 
 export interface GetAgentMetricsResponse {
@@ -184,4 +184,3 @@ export interface VersionInfo {
 export const getServerVersion = () => {
     return get<VersionInfo>('/agent/version');
 };
-

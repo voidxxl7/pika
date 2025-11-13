@@ -11,19 +11,18 @@ import (
 	"github.com/dushixiang/pika/internal/repo"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 type ApiKeyService struct {
 	logger     *zap.Logger
-	apiKeyRepo *repo.ApiKeyRepo
-	Repository *repo.ApiKeyRepo
+	ApiKeyRepo *repo.ApiKeyRepo
 }
 
-func NewApiKeyService(logger *zap.Logger, apiKeyRepo *repo.ApiKeyRepo) *ApiKeyService {
+func NewApiKeyService(logger *zap.Logger, db *gorm.DB) *ApiKeyService {
 	return &ApiKeyService{
 		logger:     logger,
-		apiKeyRepo: apiKeyRepo,
-		Repository: apiKeyRepo,
+		ApiKeyRepo: repo.NewApiKeyRepo(db),
 	}
 }
 
@@ -46,7 +45,7 @@ func (s *ApiKeyService) GenerateApiKey(ctx context.Context, name, userID string)
 		UpdatedAt: now,
 	}
 
-	if err := s.apiKeyRepo.Create(ctx, apiKey); err != nil {
+	if err := s.ApiKeyRepo.Create(ctx, apiKey); err != nil {
 		return nil, err
 	}
 
@@ -64,7 +63,7 @@ func (s *ApiKeyService) ValidateApiKey(ctx context.Context, key string) (*models
 		return nil, errors.New("api key is required")
 	}
 
-	apiKey, err := s.apiKeyRepo.FindEnabledByKey(ctx, key)
+	apiKey, err := s.ApiKeyRepo.FindEnabledByKey(ctx, key)
 	if err != nil {
 		s.logger.Warn("invalid api key", zap.String("key", key))
 		return nil, errors.New("invalid api key")
@@ -75,7 +74,7 @@ func (s *ApiKeyService) ValidateApiKey(ctx context.Context, key string) (*models
 
 // GetApiKey 获取API密钥信息
 func (s *ApiKeyService) GetApiKey(ctx context.Context, id string) (*models.ApiKey, error) {
-	apiKey, err := s.apiKeyRepo.FindById(ctx, id)
+	apiKey, err := s.ApiKeyRepo.FindById(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -84,17 +83,17 @@ func (s *ApiKeyService) GetApiKey(ctx context.Context, id string) (*models.ApiKe
 
 // ListApiKeys 列出所有API密钥
 func (s *ApiKeyService) ListApiKeys(ctx context.Context, page, pageSize int) ([]models.ApiKey, int64, error) {
-	return s.apiKeyRepo.ListAll(ctx, page, pageSize)
+	return s.ApiKeyRepo.ListAll(ctx, page, pageSize)
 }
 
 // ListUserApiKeys 列出用户的API密钥
 func (s *ApiKeyService) ListUserApiKeys(ctx context.Context, userID string, page, pageSize int) ([]models.ApiKey, int64, error) {
-	return s.apiKeyRepo.ListByUser(ctx, userID, page, pageSize)
+	return s.ApiKeyRepo.ListByUser(ctx, userID, page, pageSize)
 }
 
 // UpdateApiKeyName 更新API密钥名称
 func (s *ApiKeyService) UpdateApiKeyName(ctx context.Context, id, name string) error {
-	if err := s.apiKeyRepo.UpdateName(ctx, id, name); err != nil {
+	if err := s.ApiKeyRepo.UpdateName(ctx, id, name); err != nil {
 		return err
 	}
 
@@ -107,7 +106,7 @@ func (s *ApiKeyService) UpdateApiKeyName(ctx context.Context, id, name string) e
 
 // EnableApiKey 启用API密钥
 func (s *ApiKeyService) EnableApiKey(ctx context.Context, id string) error {
-	if err := s.apiKeyRepo.UpdateEnabled(ctx, id, true); err != nil {
+	if err := s.ApiKeyRepo.UpdateEnabled(ctx, id, true); err != nil {
 		return err
 	}
 
@@ -117,7 +116,7 @@ func (s *ApiKeyService) EnableApiKey(ctx context.Context, id string) error {
 
 // DisableApiKey 禁用API密钥
 func (s *ApiKeyService) DisableApiKey(ctx context.Context, id string) error {
-	if err := s.apiKeyRepo.UpdateEnabled(ctx, id, false); err != nil {
+	if err := s.ApiKeyRepo.UpdateEnabled(ctx, id, false); err != nil {
 		return err
 	}
 
@@ -127,7 +126,7 @@ func (s *ApiKeyService) DisableApiKey(ctx context.Context, id string) error {
 
 // DeleteApiKey 删除API密钥
 func (s *ApiKeyService) DeleteApiKey(ctx context.Context, id string) error {
-	if err := s.apiKeyRepo.DeleteById(ctx, id); err != nil {
+	if err := s.ApiKeyRepo.DeleteById(ctx, id); err != nil {
 		return err
 	}
 

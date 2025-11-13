@@ -495,11 +495,6 @@ func registerAgent(cmd *cobra.Command, args []string) {
 			Enabled:       true,
 			CheckInterval: "10m",
 		},
-		Monitor: config.MonitorConfig{
-			Enabled:  false,
-			Interval: 60,
-			Items:    []config.MonitorItem{},
-		},
 	}
 
 	// 6. 保存配置

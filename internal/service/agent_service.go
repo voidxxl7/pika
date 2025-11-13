@@ -10,23 +10,22 @@ import (
 	"github.com/dushixiang/pika/internal/protocol"
 	"github.com/dushixiang/pika/internal/repo"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 type AgentService struct {
 	logger        *zap.Logger
-	agentRepo     *repo.AgentRepo
+	AgentRepo     *repo.AgentRepo
 	metricRepo    *repo.MetricRepo
 	apiKeyService *ApiKeyService
-	Repository    *repo.AgentRepo
 }
 
-func NewAgentService(logger *zap.Logger, agentRepo *repo.AgentRepo, metricRepo *repo.MetricRepo, apiKeyService *ApiKeyService) *AgentService {
+func NewAgentService(logger *zap.Logger, db *gorm.DB, apiKeyService *ApiKeyService) *AgentService {
 	return &AgentService{
 		logger:        logger,
-		agentRepo:     agentRepo,
-		metricRepo:    metricRepo,
+		AgentRepo:     repo.NewAgentRepo(db),
+		metricRepo:    repo.NewMetricRepo(db),
 		apiKeyService: apiKeyService,
-		Repository:    agentRepo,
 	}
 }
 
@@ -48,7 +47,7 @@ func (s *AgentService) RegisterAgent(ctx context.Context, ip string, info *proto
 
 	// 使用探针的持久化 ID 来识别同一个探针
 	// 这样即使主机名或 IP 变化，也能正确识别
-	existingAgent, err := s.agentRepo.FindById(ctx, info.ID)
+	existingAgent, err := s.AgentRepo.FindById(ctx, info.ID)
 	if err == nil {
 		// 更新现有探针信息（允许主机名、IP、名称等变化）
 		now := time.Now().UnixMilli()
@@ -61,7 +60,7 @@ func (s *AgentService) RegisterAgent(ctx context.Context, ip string, info *proto
 		existingAgent.LastSeenAt = now
 		existingAgent.UpdatedAt = now
 
-		if err := s.agentRepo.UpdateById(ctx, &existingAgent); err != nil {
+		if err := s.AgentRepo.UpdateById(ctx, &existingAgent); err != nil {
 			return nil, err
 		}
 		s.logger.Info("agent re-registered",
@@ -89,7 +88,7 @@ func (s *AgentService) RegisterAgent(ctx context.Context, ip string, info *proto
 		UpdatedAt:  now,
 	}
 
-	if err := s.agentRepo.Create(ctx, agent); err != nil {
+	if err := s.AgentRepo.Create(ctx, agent); err != nil {
 		return nil, err
 	}
 
@@ -104,12 +103,12 @@ func (s *AgentService) RegisterAgent(ctx context.Context, ip string, info *proto
 
 // UpdateAgentStatus 更新探针状态
 func (s *AgentService) UpdateAgentStatus(ctx context.Context, agentID string, status int) error {
-	return s.agentRepo.UpdateStatus(ctx, agentID, status)
+	return s.AgentRepo.UpdateStatus(ctx, agentID, status)
 }
 
 // GetAgent 获取探针信息
 func (s *AgentService) GetAgent(ctx context.Context, agentID string) (*models.Agent, error) {
-	agent, err := s.agentRepo.FindById(ctx, agentID)
+	agent, err := s.AgentRepo.FindById(ctx, agentID)
 	if err != nil {
 		return nil, err
 	}
@@ -118,12 +117,12 @@ func (s *AgentService) GetAgent(ctx context.Context, agentID string) (*models.Ag
 
 // ListAgents 列出所有探针
 func (s *AgentService) ListAgents(ctx context.Context) ([]models.Agent, error) {
-	return s.agentRepo.FindAll(ctx)
+	return s.AgentRepo.FindAll(ctx)
 }
 
 // ListOnlineAgents 列出所有在线探针
 func (s *AgentService) ListOnlineAgents(ctx context.Context) ([]models.Agent, error) {
-	return s.agentRepo.FindOnlineAgents(ctx)
+	return s.AgentRepo.FindOnlineAgents(ctx)
 }
 
 // HandleMetricData 处理指标数据
@@ -342,9 +341,9 @@ func (s *AgentService) HandleMetricData(ctx context.Context, agentID string, met
 		if err := json.Unmarshal(data, &dockerDataList); err != nil {
 			return err
 		}
-		// 保存每个容器的数据
+		metrics := make([]models.DockerMetric, 0, len(dockerDataList))
 		for _, dockerData := range dockerDataList {
-			metric := &models.DockerMetric{
+			metrics = append(metrics, models.DockerMetric{
 				AgentID:       agentID,
 				ContainerID:   dockerData.ContainerID,
 				Name:          dockerData.Name,
@@ -361,13 +360,13 @@ func (s *AgentService) HandleMetricData(ctx context.Context, agentID string, met
 				BlockOutput:   dockerData.BlockOutput,
 				Pids:          dockerData.Pids,
 				Timestamp:     now,
-			}
-			if err := s.metricRepo.SaveDockerMetric(ctx, metric); err != nil {
-				s.logger.Error("failed to save docker metric",
-					zap.Error(err),
-					zap.String("agentID", agentID),
-					zap.String("containerID", dockerData.ContainerID))
-			}
+			})
+		}
+		if err := s.metricRepo.ReplaceDockerMetrics(ctx, agentID, metrics); err != nil {
+			s.logger.Error("failed to replace docker metrics",
+				zap.Error(err),
+				zap.String("agentID", agentID))
+			return err
 		}
 		return nil
 
@@ -380,17 +379,19 @@ func (s *AgentService) HandleMetricData(ctx context.Context, agentID string, met
 		// 保存每个监控项的数据
 		for _, monitorData := range monitorDataList {
 			metric := &models.MonitorMetric{
-				AgentID:      agentID,
-				Name:         monitorData.Name,
-				Type:         monitorData.Type,
-				Target:       monitorData.Target,
-				Status:       monitorData.Status,
-				StatusCode:   monitorData.StatusCode,
-				ResponseTime: monitorData.ResponseTime,
-				Error:        monitorData.Error,
-				Message:      monitorData.Message,
-				ContentMatch: monitorData.ContentMatch,
-				Timestamp:    monitorData.CheckedAt, // 使用检测时间
+				AgentID:        agentID,
+				Name:           monitorData.Name,
+				Type:           monitorData.Type,
+				Target:         monitorData.Target,
+				Status:         monitorData.Status,
+				StatusCode:     monitorData.StatusCode,
+				ResponseTime:   monitorData.ResponseTime,
+				Error:          monitorData.Error,
+				Message:        monitorData.Message,
+				ContentMatch:   monitorData.ContentMatch,
+				CertExpiryTime: monitorData.CertExpiryTime,
+				CertDaysLeft:   monitorData.CertDaysLeft,
+				Timestamp:      monitorData.CheckedAt, // 使用检测时间
 			}
 			if err := s.metricRepo.SaveMonitorMetric(ctx, metric); err != nil {
 				s.logger.Error("failed to save monitor metric",
@@ -408,25 +409,21 @@ func (s *AgentService) HandleMetricData(ctx context.Context, agentID string, met
 }
 
 // CalculateInterval 根据时间范围计算合适的聚合间隔（秒）
-// 目标是返回大约200-500个数据点
+// 目标是返回尽量平滑的曲线，同时控制数据点数量
 func CalculateInterval(start, end int64) int {
 	duration := (end - start) / 1000 // 转换为秒
 
 	switch {
-	case duration <= 3600: // 1小时内: 10秒聚合
-		return 10
-	case duration <= 21600: // 6小时内: 1分钟聚合
+	case duration <= 60: // 1分钟内: 2秒
+		return 2
+	case duration <= 300: // 5分钟内: 5秒
+		return 5
+	case duration <= 900: // 15分钟内: 15秒
+		return 15
+	case duration <= 1800: // 30分钟内: 30秒
+		return 30
+	default: // 1小时内: 60秒
 		return 60
-	case duration <= 86400: // 1天内: 5分钟聚合
-		return 300
-	case duration <= 259200: // 3天内: 15分钟聚合
-		return 900
-	case duration <= 604800: // 7天内: 30分钟聚合
-		return 1800
-	case duration <= 2592000: // 30天内: 2小时聚合
-		return 7200
-	default: // 30天以上: 6小时聚合
-		return 21600
 	}
 }
 
@@ -518,6 +515,9 @@ func (s *AgentService) GetLatestMetrics(ctx context.Context, agentID string) (*L
 
 	// 获取最新Docker容器信息
 	if docker, err := s.metricRepo.GetLatestDockerMetrics(ctx, agentID); err == nil && len(docker) > 0 {
+		for i := range docker {
+			docker[i].Image = ""
+		}
 		result.Docker = docker
 	}
 
@@ -536,7 +536,7 @@ func (s *AgentService) GetLatestMetrics(ctx context.Context, agentID string) (*L
 
 // StartCleanupTask 启动数据清理任务
 func (s *AgentService) StartCleanupTask(ctx context.Context) {
-	ticker := time.NewTicker(1 * time.Hour)
+	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 
 	s.logger.Info("cleanup task started")
@@ -554,8 +554,8 @@ func (s *AgentService) StartCleanupTask(ctx context.Context) {
 
 // cleanupOldMetrics 清理旧数据
 func (s *AgentService) cleanupOldMetrics(ctx context.Context) {
-	// 删除7天前的数据
-	before := time.Now().AddDate(0, 0, -7).UnixMilli()
+	// 删除1小时前的数据
+	before := time.Now().Add(-1 * time.Hour).UnixMilli()
 
 	s.logger.Info("starting to clean old metrics", zap.Int64("beforeTimestamp", before))
 
@@ -663,12 +663,12 @@ func (s *AgentService) SaveAuditResult(ctx context.Context, agentID string, resu
 	}
 
 	// 保存到数据库
-	return s.agentRepo.SaveAuditResult(ctx, auditRecord)
+	return s.AgentRepo.SaveAuditResult(ctx, auditRecord)
 }
 
 // GetAuditResult 获取最新的审计结果
 func (s *AgentService) GetAuditResult(ctx context.Context, agentID string) (*protocol.VPSAuditResult, error) {
-	record, err := s.agentRepo.GetLatestAuditResult(ctx, agentID)
+	record, err := s.AgentRepo.GetLatestAuditResult(ctx, agentID)
 	if err != nil {
 		return nil, err
 	}
@@ -683,7 +683,7 @@ func (s *AgentService) GetAuditResult(ctx context.Context, agentID string) (*pro
 
 // ListAuditResults 获取审计结果列表
 func (s *AgentService) ListAuditResults(ctx context.Context, agentID string) ([]map[string]interface{}, error) {
-	records, err := s.agentRepo.ListAuditResults(ctx, agentID)
+	records, err := s.AgentRepo.ListAuditResults(ctx, agentID)
 	if err != nil {
 		return nil, err
 	}
@@ -731,17 +731,17 @@ func (s *AgentService) ListAuditResults(ctx context.Context, agentID string) ([]
 
 // UpdateAgentName 更新探针名称
 func (s *AgentService) UpdateAgentName(ctx context.Context, agentID string, name string) error {
-	return s.agentRepo.UpdateName(ctx, agentID, name)
+	return s.AgentRepo.UpdateName(ctx, agentID, name)
 }
 
 // UpdateAgentInfo 更新探针信息（名称、平台、位置、到期时间）
 func (s *AgentService) UpdateAgentInfo(ctx context.Context, agentID string, updates map[string]interface{}) error {
-	return s.agentRepo.UpdateInfo(ctx, agentID, updates)
+	return s.AgentRepo.UpdateInfo(ctx, agentID, updates)
 }
 
 // GetStatistics 获取探针统计数据
 func (s *AgentService) GetStatistics(ctx context.Context) (map[string]interface{}, error) {
-	total, online, err := s.agentRepo.GetStatistics(ctx)
+	total, online, err := s.AgentRepo.GetStatistics(ctx)
 	if err != nil {
 		return nil, err
 	}

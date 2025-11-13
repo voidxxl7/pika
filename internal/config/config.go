@@ -2,7 +2,8 @@ package config
 
 // AppConfig 应用配置
 type AppConfig struct {
-	JWT JWTConfig `mapstructure:"JWT"`
+	JWT             JWTConfig `mapstructure:"JWT"`
+	MonitorInterval int       `mapstructure:"MonitorInterval"`
 }
 
 // JWTConfig JWT配置

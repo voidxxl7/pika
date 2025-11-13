@@ -6,7 +6,6 @@ package internal
 import (
 	"github.com/dushixiang/pika/internal/config"
 	"github.com/dushixiang/pika/internal/handler"
-	"github.com/dushixiang/pika/internal/repo"
 	"github.com/dushixiang/pika/internal/service"
 	"github.com/dushixiang/pika/internal/websocket"
 	"github.com/google/wire"
@@ -17,35 +16,26 @@ import (
 // InitializeApp 初始化应用
 func InitializeApp(logger *zap.Logger, db *gorm.DB, cfg *config.AppConfig) (*AppComponents, error) {
 	wire.Build(
-		// Repositories
-		repo.NewAgentRepo,
-		repo.NewMetricRepo,
-		repo.NewUserRepo,
-		provideApiKeyRepo,
-		provideAlertRepo,
-		providePropertyRepo,
-
-		// Services
-		provideApiKeyService,
-		provideAgentService,
+		service.NewAccountService,
+		service.NewAgentService,
 		service.NewUserService,
-		provideNotifier,
-		providePropertyService,
-		provideAlertService,
+		service.NewApiKeyService,
+		service.NewAlertService,
+		service.NewPropertyService,
+		service.NewMonitorService,
 
-		// Providers for services with config
-		provideAccountService,
-		provideAgentHandler,
-		provideApiKeyHandler,
-		provideAlertHandler,
-		providePropertyHandler,
-
+		service.NewNotifier,
 		// WebSocket Manager
 		websocket.NewManager,
 
 		// Handlers
-		handler.NewAccountHandler,
+		handler.NewAgentHandler,
 		handler.NewUserHandler,
+		handler.NewAlertHandler,
+		handler.NewPropertyHandler,
+		handler.NewMonitorHandler,
+		handler.NewApiKeyHandler,
+		handler.NewAccountHandler,
 
 		// App Components
 		wire.Struct(new(AppComponents), "*"),
@@ -61,9 +51,14 @@ type AppComponents struct {
 	ApiKeyHandler   *handler.ApiKeyHandler
 	AlertHandler    *handler.AlertHandler
 	PropertyHandler *handler.PropertyHandler
+	MonitorHandler  *handler.MonitorHandler
+
 	AgentService    *service.AgentService
 	UserService     *service.UserService
 	AlertService    *service.AlertService
 	PropertyService *service.PropertyService
-	WSManager       *websocket.Manager
+	MonitorService  *service.MonitorService
+	ApiKeyService   *service.ApiKeyService
+
+	WSManager *websocket.Manager
 }

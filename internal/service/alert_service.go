@@ -10,6 +10,7 @@ import (
 	"github.com/dushixiang/pika/internal/repo"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 // AlertService 告警服务
@@ -25,10 +26,10 @@ type AlertService struct {
 	mu     sync.RWMutex
 }
 
-func NewAlertService(alertRepo *repo.AlertRepo, agentRepo *repo.AgentRepo, propertyService *PropertyService, notifier *Notifier, logger *zap.Logger) *AlertService {
+func NewAlertService(logger *zap.Logger, db *gorm.DB, propertyService *PropertyService, notifier *Notifier) *AlertService {
 	return &AlertService{
-		alertRepo:       alertRepo,
-		agentRepo:       agentRepo,
+		alertRepo:       repo.NewAlertRepo(db),
+		agentRepo:       repo.NewAgentRepo(db),
 		propertyService: propertyService,
 		notifier:        notifier,
 		logger:          logger,
