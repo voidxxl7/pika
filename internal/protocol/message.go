@@ -50,6 +50,9 @@ const (
 	// 指标消息
 	MessageTypeMetrics       MessageType = "metrics"
 	MessageTypeMonitorConfig MessageType = "monitor_config"
+	// 防篡改消息
+	MessageTypeTamperProtect MessageType = "tamper_protect"
+	MessageTypeTamperEvent   MessageType = "tamper_event"
 )
 
 type MetricType string
@@ -261,4 +264,27 @@ type MonitorData struct {
 	// TLS 证书信息（仅用于 HTTPS）
 	CertExpiryTime int64 `json:"certExpiryTime,omitempty"` // 证书过期时间(毫秒时间戳)
 	CertDaysLeft   int   `json:"certDaysLeft,omitempty"`   // 证书剩余天数
+}
+
+// TamperProtectConfig 防篡改保护配置
+type TamperProtectConfig struct {
+	Paths []string `json:"paths"` // 要保护的目录列表(完整列表)
+}
+
+// TamperProtectResponse 防篡改保护响应
+type TamperProtectResponse struct {
+	Success bool     `json:"success"`           // 是否成功
+	Message string   `json:"message"`           // 响应消息
+	Paths   []string `json:"paths"`             // 当前保护的目录列表
+	Added   []string `json:"added,omitempty"`   // 新增的目录
+	Removed []string `json:"removed,omitempty"` // 移除的目录
+	Error   string   `json:"error,omitempty"`   // 错误信息
+}
+
+// TamperEventData 防篡改事件数据
+type TamperEventData struct {
+	Path      string `json:"path"`      // 被修改的路径
+	Operation string `json:"operation"` // 操作类型: write, remove, rename, chmod, create
+	Timestamp int64  `json:"timestamp"` // 事件时间(毫秒)
+	Details   string `json:"details"`   // 详细信息
 }

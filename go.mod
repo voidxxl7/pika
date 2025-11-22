@@ -4,6 +4,7 @@ go 1.25.0
 
 require (
 	github.com/coreos/go-oidc/v3 v3.16.0
+	github.com/fsnotify/fsnotify v1.9.0
 	github.com/go-errors/errors v1.5.1
 	github.com/go-orz/orz v0.2.9
 	github.com/go-orz/toolkit v0.1.0
@@ -32,7 +33,6 @@ require (
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/ebitengine/purego v0.9.0 // indirect
-	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.11 // indirect
 	github.com/glebarez/go-sqlite v1.22.0 // indirect
 	github.com/glebarez/sqlite v1.11.0 // indirect

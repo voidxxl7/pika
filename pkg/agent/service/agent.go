@@ -16,6 +16,7 @@ import (
 	"github.com/dushixiang/pika/pkg/agent/collector"
 	"github.com/dushixiang/pika/pkg/agent/config"
 	"github.com/dushixiang/pika/pkg/agent/id"
+	"github.com/dushixiang/pika/pkg/agent/tamper"
 	"github.com/dushixiang/pika/pkg/version"
 	"github.com/gorilla/websocket"
 	"github.com/jpillora/backoff"
@@ -60,13 +61,15 @@ type Agent struct {
 	activeConn       *safeConn
 	collectorMu      sync.RWMutex
 	collectorManager *collector.Manager
+	tamperProtector  *tamper.Protector
 }
 
 // New 创建 Agent 实例
 func New(cfg *config.Config) *Agent {
 	return &Agent{
-		cfg:   cfg,
-		idMgr: id.NewManager(),
+		cfg:             cfg,
+		idMgr:           id.NewManager(),
+		tamperProtector: tamper.NewProtector(),
 	}
 }
 
@@ -192,6 +195,11 @@ func (a *Agent) runOnce(ctx context.Context) error {
 		}
 	}()
 
+	// 启动防篡改事件监控
+	go func() {
+		a.tamperEventLoop(ctx, conn, done)
+	}()
+
 	// 等待错误或上下文取消
 	select {
 	case err := <-errChan:
@@ -242,6 +250,8 @@ func (a *Agent) readLoop(conn *websocket.Conn, done chan struct{}) error {
 			go a.handleCommand(msg.Data)
 		case protocol.MessageTypeMonitorConfig:
 			go a.handleMonitorConfig(msg.Data)
+		case protocol.MessageTypeTamperProtect:
+			go a.handleTamperProtect(msg.Data)
 		default:
 			// 忽略其他类型
 		}
@@ -575,4 +585,125 @@ func (a *Agent) sendCommandResponse(conn *safeConn, cmdID, cmdType, status, errM
 // GetVersion 获取版本号
 func GetVersion() string {
 	return version.GetVersion()
+}
+
+// handleTamperProtect 处理防篡改保护指令
+func (a *Agent) handleTamperProtect(data json.RawMessage) {
+	var config protocol.TamperProtectConfig
+	if err := json.Unmarshal(data, &config); err != nil {
+		log.Printf("⚠️  解析防篡改保护配置失败: %v", err)
+		a.sendTamperProtectResponse(false, "解析配置失败", nil, nil, nil, err.Error())
+		return
+	}
+
+	log.Printf("📥 收到防篡改保护配置: Paths=%v", config.Paths)
+
+	conn := a.getActiveConn()
+	if conn == nil {
+		log.Println("⚠️  当前连接未就绪，无法执行防篡改保护")
+		return
+	}
+
+	// 如果配置为空列表,停止所有保护
+	if len(config.Paths) == 0 {
+		if err := a.tamperProtector.StopAll(); err != nil {
+			log.Printf("❌ 停止所有防篡改保护失败: %v", err)
+			a.sendTamperProtectResponse(false, "停止所有保护失败", []string{}, nil, nil, err.Error())
+			return
+		}
+		log.Println("✅ 已停止所有防篡改保护")
+		a.sendTamperProtectResponse(true, "已停止所有防篡改保护", []string{}, []string{}, a.tamperProtector.GetProtectedPaths(), "")
+		return
+	}
+
+	// 更新保护目录列表
+	ctx := context.Background()
+	result, err := a.tamperProtector.UpdatePaths(ctx, config.Paths)
+	if err != nil {
+		log.Printf("⚠️  更新防篡改保护失败: %v", err)
+		// 即使有错误也返回部分成功的结果
+		if result != nil {
+			a.sendTamperProtectResponse(false, "部分更新失败", result.Current, result.Added, result.Removed, err.Error())
+		} else {
+			a.sendTamperProtectResponse(false, "更新失败", nil, nil, nil, err.Error())
+		}
+		return
+	}
+
+	// 成功更新
+	message := fmt.Sprintf("防篡改保护已更新: 新增 %d 个, 移除 %d 个, 当前保护 %d 个目录",
+		len(result.Added), len(result.Removed), len(result.Current))
+	log.Printf("✅ %s", message)
+	a.sendTamperProtectResponse(true, message, result.Current, result.Added, result.Removed, "")
+}
+
+// sendTamperProtectResponse 发送防篡改保护响应
+func (a *Agent) sendTamperProtectResponse(success bool, message string, paths []string, added []string, removed []string, errMsg string) {
+	conn := a.getActiveConn()
+	if conn == nil {
+		return
+	}
+
+	resp := protocol.TamperProtectResponse{
+		Success: success,
+		Message: message,
+		Paths:   paths,
+		Added:   added,
+		Removed: removed,
+		Error:   errMsg,
+	}
+
+	respData, err := json.Marshal(resp)
+	if err != nil {
+		log.Printf("⚠️  序列化防篡改保护响应失败: %v", err)
+		return
+	}
+
+	msg := protocol.Message{
+		Type: protocol.MessageTypeTamperProtect,
+		Data: respData,
+	}
+
+	if err := conn.WriteJSON(msg); err != nil {
+		log.Printf("⚠️  发送防篡改保护响应失败: %v", err)
+	}
+}
+
+// tamperEventLoop 防篡改事件监控循环
+func (a *Agent) tamperEventLoop(ctx context.Context, conn *safeConn, done chan struct{}) {
+	eventCh := a.tamperProtector.GetEvents()
+
+	for {
+		select {
+		case <-done:
+			return
+		case <-ctx.Done():
+			return
+		case event := <-eventCh:
+			// 发送防篡改事件到服务端
+			eventData := protocol.TamperEventData{
+				Path:      event.Path,
+				Operation: event.Operation,
+				Timestamp: event.Timestamp.UnixMilli(),
+				Details:   event.Details,
+			}
+
+			data, err := json.Marshal(eventData)
+			if err != nil {
+				log.Printf("⚠️  序列化防篡改事件失败: %v", err)
+				continue
+			}
+
+			msg := protocol.Message{
+				Type: protocol.MessageTypeTamperEvent,
+				Data: data,
+			}
+
+			if err := conn.WriteJSON(msg); err != nil {
+				log.Printf("⚠️  发送防篡改事件失败: %v", err)
+			} else {
+				log.Printf("📤 已上报防篡改事件: %s - %s", event.Path, event.Operation)
+			}
+		}
+	}
 }
