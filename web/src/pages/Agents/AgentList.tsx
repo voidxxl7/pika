@@ -2,7 +2,7 @@ import {useRef, useState} from 'react';
 import {useNavigate} from 'react-router-dom';
 import type {ActionType, ProColumns} from '@ant-design/pro-components';
 import {ProTable} from '@ant-design/pro-components';
-import {App, Button, DatePicker, Divider, Dropdown, Form, Input, Modal, Space, Tag} from 'antd';
+import {App, Button, DatePicker, Divider, Dropdown, Form, Input, Modal, Select, Space, Tag} from 'antd';
 import type {MenuProps} from 'antd';
 import {Edit, Eye, RefreshCw, Plus, Shield, Trash2, MoreVertical} from 'lucide-react';
 import {deleteAgent, getAgentPaging, updateAgentInfo} from '../../api/agent';
@@ -28,6 +28,7 @@ const AgentList = () => {
             platform: agent.platform,
             location: agent.location,
             expireTime: agent.expireTime ? dayjs(agent.expireTime) : null,
+            visibility: agent.visibility || 'public',
         });
         setEditModalVisible(true);
     };
@@ -46,6 +47,7 @@ const AgentList = () => {
                 name: values.name,
                 platform: values.platform,
                 location: values.location,
+                visibility: values.visibility || 'public',
             };
 
             if (values.expireTime) {
@@ -155,6 +157,18 @@ const AgentList = () => {
             render: (_, record) => (
                 <Tag color={record.status === 1 ? 'success' : 'default'}>
                     {record.status === 1 ? '在线' : '离线'}
+                </Tag>
+            ),
+        },
+        {
+            title: '可见性',
+            dataIndex: 'visibility',
+            key: 'visibility',
+            hideInSearch: true,
+            width: 100,
+            render: (visibility) => (
+                <Tag color={visibility === 'public' ? 'green' : 'orange'}>
+                    {visibility === 'public' ? '匿名可见' : '登录可见'}
                 </Tag>
             ),
         },
@@ -354,6 +368,20 @@ const AgentList = () => {
                             style={{width: '100%'}}
                             format="YYYY-MM-DD"
                             placeholder="请选择到期时间"
+                        />
+                    </Form.Item>
+                    <Form.Item
+                        label="可见性"
+                        name="visibility"
+                        rules={[{required: true, message: '请选择可见性'}]}
+                        extra="控制探针在公开页面的可见性"
+                    >
+                        <Select
+                            placeholder="请选择可见性"
+                            options={[
+                                {label: '匿名可见', value: 'public'},
+                                {label: '登录可见', value: 'private'},
+                            ]}
                         />
                     </Form.Item>
                 </Form>

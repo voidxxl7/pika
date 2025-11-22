@@ -29,7 +29,7 @@ export const deleteMonitor = (id: number) => {
 
 // 公开接口 - 获取监控配置及聚合统计
 export const getPublicMonitors = () => {
-    return get<PublicMonitor[]>('/monitors/stats');
+    return get<PublicMonitor[]>('/monitors');
 };
 
 // 公开接口 - 获取指定监控的统计数据

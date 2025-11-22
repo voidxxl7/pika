@@ -698,16 +698,6 @@ func (s *AgentService) ListAuditResults(ctx context.Context, agentID string) ([]
 	return results, nil
 }
 
-// UpdateAgentName 更新探针名称
-func (s *AgentService) UpdateAgentName(ctx context.Context, agentID string, name string) error {
-	return s.AgentRepo.UpdateName(ctx, agentID, name)
-}
-
-// UpdateAgentInfo 更新探针信息（名称、平台、位置、到期时间）
-func (s *AgentService) UpdateAgentInfo(ctx context.Context, agentID string, updates map[string]interface{}) error {
-	return s.AgentRepo.UpdateInfo(ctx, agentID, updates)
-}
-
 // GetStatistics 获取探针统计数据
 func (s *AgentService) GetStatistics(ctx context.Context) (map[string]interface{}, error) {
 	total, online, err := s.AgentRepo.GetStatistics(ctx)
@@ -775,4 +765,24 @@ func (s *AgentService) DeleteAgent(ctx context.Context, agentID string) error {
 		s.logger.Info("探针删除成功", zap.String("agentId", agentID))
 		return nil
 	})
+}
+
+// ListByAuth 根据认证状态列出探针（已登录返回全部，未登录返回公开可见）
+func (s *AgentService) ListByAuth(ctx context.Context, isAuthenticated bool) ([]models.Agent, error) {
+	if isAuthenticated {
+		return s.AgentRepo.FindAll(ctx)
+	}
+	return s.AgentRepo.FindPublicAgents(ctx)
+}
+
+// GetAgentByAuth 根据认证状态获取探针（已登录返回全部，未登录返回公开可见）
+func (s *AgentService) GetAgentByAuth(ctx context.Context, id string, isAuthenticated bool) (*models.Agent, error) {
+	if isAuthenticated {
+		agent, err := s.AgentRepo.FindById(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		return &agent, nil
+	}
+	return s.AgentRepo.FindPublicAgentByID(ctx, id)
 }

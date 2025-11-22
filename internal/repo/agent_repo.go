@@ -106,14 +106,6 @@ func (r *AgentRepo) ListAuditResults(ctx context.Context, agentID string) ([]mod
 	return audits, err
 }
 
-// UpdateName 更新探针名称
-func (r *AgentRepo) UpdateName(ctx context.Context, agentID string, name string) error {
-	return r.db.WithContext(ctx).
-		Model(&models.Agent{}).
-		Where("id = ?", agentID).
-		Update("name", name).Error
-}
-
 // UpdateInfo 更新探针信息（名称、平台、位置、到期时间）
 func (r *AgentRepo) UpdateInfo(ctx context.Context, agentID string, updates map[string]interface{}) error {
 	return r.db.WithContext(ctx).
@@ -158,4 +150,25 @@ func (r *AgentRepo) DeleteAuditResults(ctx context.Context, agentID string) erro
 	return r.db.WithContext(ctx).
 		Where("agent_id = ?", agentID).
 		Delete(&models.AuditResult{}).Error
+}
+
+// FindPublicAgents 查找所有公开可见的探针
+func (r *AgentRepo) FindPublicAgents(ctx context.Context) ([]models.Agent, error) {
+	var agents []models.Agent
+	err := r.db.WithContext(ctx).
+		Where("visibility = ?", "public").
+		Find(&agents).Error
+	return agents, err
+}
+
+// FindPublicAgentByID 查找指定ID的公开可见探针
+func (r *AgentRepo) FindPublicAgentByID(ctx context.Context, id string) (*models.Agent, error) {
+	var agent models.Agent
+	err := r.db.WithContext(ctx).
+		Where("id = ? AND visibility = ?", id, "public").
+		First(&agent).Error
+	if err != nil {
+		return nil, err
+	}
+	return &agent, nil
 }

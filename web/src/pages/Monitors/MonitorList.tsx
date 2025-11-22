@@ -60,6 +60,7 @@ const MonitorList = () => {
             description: '',
             enabled: true,
             showTargetPublic: true,
+            visibility: 'public',
             interval: 60,
             agentIds: [],
             httpMethod: 'GET',
@@ -89,6 +90,7 @@ const MonitorList = () => {
             description: monitor.description,
             enabled: monitor.enabled,
             showTargetPublic: monitor.showTargetPublic ?? true,
+            visibility: monitor.visibility || 'public',
             interval: monitor.interval || 60,
             agentIds: monitor.agentIds || [],
             httpMethod: monitor.httpConfig?.method || 'GET',
@@ -133,6 +135,7 @@ const MonitorList = () => {
                 description: values.description?.trim(),
                 enabled: values.enabled,
                 showTargetPublic: values.showTargetPublic ?? true,
+                visibility: values.visibility || 'public',
                 interval: values.interval || 60,
                 agentIds: values.agentIds || [],
             };
@@ -245,6 +248,16 @@ const MonitorList = () => {
             width: 80,
             render: (enabled: boolean) => (
                 <Tag color={enabled ? 'green' : 'red'}>{enabled ? '启用' : '禁用'}</Tag>
+            ),
+        },
+        {
+            title: '可见性',
+            dataIndex: 'visibility',
+            width: 100,
+            render: (visibility: string) => (
+                <Tag color={visibility === 'public' ? 'green' : 'orange'}>
+                    {visibility === 'public' ? '匿名可见' : '登录可见'}
+                </Tag>
             ),
         },
         {
@@ -435,6 +448,21 @@ const MonitorList = () => {
                         <Switch checkedChildren="显示" unCheckedChildren="隐藏"/>
                     </Form.Item>
 
+                    <Form.Item
+                        label="可见性"
+                        name="visibility"
+                        rules={[{required: true, message: '请选择可见性'}]}
+                        extra="控制监控任务在公开页面的可见性"
+                    >
+                        <Select
+                            placeholder="请选择可见性"
+                            options={[
+                                {label: '匿名可见', value: 'public'},
+                                {label: '登录可见', value: 'private'},
+                            ]}
+                        />
+                    </Form.Item>
+
                     {watchType === 'tcp' ? (
                         <Form.Item label="连接超时 (秒)" name="tcpTimeout" initialValue={5}>
                             <InputNumber min={1} max={120} style={{width: '100%'}}/>
@@ -445,7 +473,8 @@ const MonitorList = () => {
                                 <InputNumber min={1} max={60} style={{width: '100%'}}/>
                             </Form.Item>
 
-                            <Form.Item label="Ping 次数" name="icmpCount" initialValue={4} extra="单次检测发送的 ICMP 包数量">
+                            <Form.Item label="Ping 次数" name="icmpCount" initialValue={4}
+                                       extra="单次检测发送的 ICMP 包数量">
                                 <InputNumber min={1} max={10} style={{width: '100%'}}/>
                             </Form.Item>
                         </>

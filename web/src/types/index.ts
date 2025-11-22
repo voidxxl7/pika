@@ -26,6 +26,7 @@ export interface Agent {
     location?: string;       // 位置
     expireTime?: number;     // 到期时间（时间戳毫秒）
     status: number;
+    visibility?: string;     // 可见性: public-匿名可见, private-登录可见
     lastSeenAt: string | number;  // 支持字符串或时间戳
     createdAt?: string;
     updatedAt?: string;
@@ -247,6 +248,7 @@ export interface MonitorTask {
     description?: string;
     enabled: boolean;
     showTargetPublic: boolean;
+    visibility?: string;     // 可见性: public-匿名可见, private-登录可见
     interval: number;
     httpConfig?: MonitorHttpConfig | null;
     tcpConfig?: MonitorTcpConfig | null;
@@ -263,6 +265,7 @@ export interface MonitorTaskRequest {
     description?: string;
     enabled?: boolean;
     showTargetPublic?: boolean;
+    visibility?: string;     // 可见性: public-匿名可见, private-登录可见
     interval: number;
     httpConfig?: MonitorHttpConfig | null;
     tcpConfig?: MonitorTcpConfig | null;

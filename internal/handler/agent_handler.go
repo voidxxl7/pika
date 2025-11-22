@@ -14,6 +14,7 @@ import (
 	"github.com/dushixiang/pika/internal/models"
 	"github.com/dushixiang/pika/internal/protocol"
 	"github.com/dushixiang/pika/internal/service"
+	"github.com/dushixiang/pika/internal/utils"
 	ws "github.com/dushixiang/pika/internal/websocket"
 	"github.com/dushixiang/pika/pkg/version"
 	"github.com/go-orz/orz"
@@ -230,17 +231,23 @@ func (h *AgentHandler) Paging(c echo.Context) error {
 	return orz.Ok(c, page)
 }
 
-// Get 获取探针详情（公开接口，隐藏敏感信息）
+// Get 获取探针详情（公开接口，已登录返回全部，未登录返回公开可见）
 func (h *AgentHandler) Get(c echo.Context) error {
 	id := c.Param("id")
 	ctx := c.Request().Context()
 
-	agent, err := h.agentService.GetAgent(ctx, id)
+	// 根据认证状态返回相应的探针
+	isAuthenticated := utils.IsAuthenticated(c)
+	agent, err := h.agentService.GetAgentByAuth(ctx, id, isAuthenticated)
 	if err != nil {
 		return err
 	}
-	agent.IP = ""
-	agent.Hostname = ""
+
+	// 未登录时隐藏敏感信息
+	if !isAuthenticated {
+		agent.IP = ""
+		agent.Hostname = ""
+	}
 
 	return orz.Ok(c, agent)
 }
@@ -258,9 +265,16 @@ func (h *AgentHandler) GetForAdmin(c echo.Context) error {
 	return orz.Ok(c, agent)
 }
 
-// GetMetrics 获取探针聚合指标
+// GetMetrics 获取探针聚合指标（公开接口，已登录返回全部，未登录返回公开可见）
 func (h *AgentHandler) GetMetrics(c echo.Context) error {
 	agentID := c.Param("id")
+	ctx := c.Request().Context()
+
+	// 验证探针访问权限
+	if _, err := h.agentService.GetAgentByAuth(ctx, agentID, utils.IsAuthenticated(c)); err != nil {
+		return err
+	}
+
 	metricType := c.QueryParam("type")
 	rangeParam := c.QueryParam("range")
 
@@ -302,7 +316,6 @@ func (h *AgentHandler) GetMetrics(c echo.Context) error {
 	// 服务端自动计算最优聚合间隔
 	interval := service.CalculateInterval(start, end)
 
-	ctx := c.Request().Context()
 	metrics, err := h.agentService.GetMetrics(ctx, agentID, metricType, start, end, interval)
 	if err != nil {
 		return err
@@ -319,9 +332,16 @@ func (h *AgentHandler) GetMetrics(c echo.Context) error {
 	})
 }
 
-// GetNetworkMetricsByInterface 获取按网卡接口分组的网络指标
+// GetNetworkMetricsByInterface 获取按网卡接口分组的网络指标（公开接口，已登录返回全部，未登录返回公开可见）
 func (h *AgentHandler) GetNetworkMetricsByInterface(c echo.Context) error {
 	agentID := c.Param("id")
+	ctx := c.Request().Context()
+
+	// 验证探针访问权限
+	if _, err := h.agentService.GetAgentByAuth(ctx, agentID, utils.IsAuthenticated(c)); err != nil {
+		return err
+	}
+
 	rangeParam := c.QueryParam("range")
 
 	// 根据 range 参数自动计算时间范围
@@ -350,7 +370,6 @@ func (h *AgentHandler) GetNetworkMetricsByInterface(c echo.Context) error {
 	// 服务端自动计算最优聚合间隔
 	interval := service.CalculateInterval(start, end)
 
-	ctx := c.Request().Context()
 	metrics, err := h.agentService.GetNetworkMetricsByInterface(ctx, agentID, start, end, interval)
 	if err != nil {
 		return err
@@ -367,10 +386,15 @@ func (h *AgentHandler) GetNetworkMetricsByInterface(c echo.Context) error {
 	})
 }
 
-// GetLatestMetrics 获取探针最新指标
+// GetLatestMetrics 获取探针最新指标（公开接口，已登录返回全部，未登录返回公开可见）
 func (h *AgentHandler) GetLatestMetrics(c echo.Context) error {
 	id := c.Param("id")
 	ctx := c.Request().Context()
+
+	// 验证探针访问权限
+	if _, err := h.agentService.GetAgentByAuth(ctx, id, utils.IsAuthenticated(c)); err != nil {
+		return err
+	}
 
 	metrics, err := h.agentService.GetLatestMetrics(ctx, id)
 	if err != nil {
@@ -380,10 +404,12 @@ func (h *AgentHandler) GetLatestMetrics(c echo.Context) error {
 	return orz.Ok(c, metrics)
 }
 
-// GetAgents 获取探针列表
+// GetAgents 获取探针列表（公开接口，已登录返回全部，未登录返回公开可见）
 func (h *AgentHandler) GetAgents(c echo.Context) error {
 	ctx := c.Request().Context()
-	agents, err := h.agentService.ListAgents(ctx)
+
+	// 根据认证状态返回相应的探针列表
+	agents, err := h.agentService.ListByAuth(ctx, utils.IsAuthenticated(c))
 	if err != nil {
 		return err
 	}
@@ -411,6 +437,7 @@ func (h *AgentHandler) GetAgents(c echo.Context) error {
 			"expireTime": agent.ExpireTime,
 			"status":     agent.Status,
 			"lastSeenAt": agent.LastSeenAt,
+			"visibility": agent.Visibility,
 		}
 
 		// 获取最新指标数据
@@ -534,65 +561,34 @@ func (h *AgentHandler) ListAuditResults(c echo.Context) error {
 	})
 }
 
-// UpdateName 更新探针名称
-func (h *AgentHandler) UpdateName(c echo.Context) error {
-	agentID := c.Param("id")
-
-	var req struct {
-		Name string `json:"name" validate:"required"`
-	}
-	if err := c.Bind(&req); err != nil {
-		return orz.NewError(400, "请求参数错误")
-	}
-	if err := c.Validate(&req); err != nil {
-		return orz.NewError(400, "名称不能为空")
-	}
-
-	ctx := c.Request().Context()
-	if err := h.agentService.UpdateAgentName(ctx, agentID, req.Name); err != nil {
-		return err
-	}
-
-	return orz.Ok(c, orz.Map{
-		"message": "更新成功",
-	})
-}
-
 // UpdateInfo 更新探针信息（名称、平台、位置、到期时间）
 func (h *AgentHandler) UpdateInfo(c echo.Context) error {
 	agentID := c.Param("id")
 
 	var req struct {
-		Name       *string `json:"name"`
-		Platform   *string `json:"platform"`
-		Location   *string `json:"location"`
-		ExpireTime *int64  `json:"expireTime"`
+		Name       string `json:"name"`
+		Platform   string `json:"platform"`
+		Location   string `json:"location"`
+		ExpireTime int64  `json:"expireTime"`
+		Visibility string `json:"visibility"`
 	}
 	if err := c.Bind(&req); err != nil {
 		return orz.NewError(400, "请求参数错误")
 	}
 
 	// 构建更新字段
-	updates := make(map[string]interface{})
-	if req.Name != nil {
-		updates["name"] = *req.Name
-	}
-	if req.Platform != nil {
-		updates["platform"] = *req.Platform
-	}
-	if req.Location != nil {
-		updates["location"] = *req.Location
-	}
-	if req.ExpireTime != nil {
-		updates["expire_time"] = *req.ExpireTime
-	}
-
-	if len(updates) == 0 {
-		return orz.NewError(400, "没有需要更新的字段")
+	var updates = models.Agent{
+		ID:         agentID,
+		Name:       req.Name,
+		Platform:   req.Platform,
+		Location:   req.Location,
+		ExpireTime: req.ExpireTime,
+		Visibility: req.Visibility,
+		UpdatedAt:  time.Now().UnixMilli(),
 	}
 
 	ctx := c.Request().Context()
-	if err := h.agentService.UpdateAgentInfo(ctx, agentID, updates); err != nil {
+	if err := h.agentService.AgentRepo.UpdateById(ctx, &updates); err != nil {
 		return err
 	}
 

@@ -132,21 +132,26 @@ func setupApi(app *orz.App, components *AppComponents) {
 		publicApi.GET("/auth/oidc/url", components.AccountHandler.GetOIDCAuthURL)
 		publicApi.GET("/auth/github/url", components.AccountHandler.GetGitHubAuthURL)
 
-		// 探针信息（公开访问）- 用于公共展示页面
-		publicApi.GET("/agents", components.AgentHandler.GetAgents)
-		publicApi.GET("/agents/:id", components.AgentHandler.Get)
-		publicApi.GET("/agents/:id/metrics", components.AgentHandler.GetMetrics)
-		publicApi.GET("/agents/:id/metrics/latest", components.AgentHandler.GetLatestMetrics)
-		publicApi.GET("/agents/:id/metrics/network-by-interface", components.AgentHandler.GetNetworkMetricsByInterface)
-
-		// Agent 版本和下载
+		// Agent 版本和下载（完全公开，无需任何认证）
 		publicApi.GET("/agent/version", components.AgentHandler.GetAgentVersion)
 		publicApi.GET("/agent/downloads/:filename", components.AgentHandler.DownloadAgent)
+	}
 
-		// 监控统计数据（公开访问）- 用于公共展示页面
-		publicApi.GET("/monitors/stats", components.MonitorHandler.GetAllStats)
-		publicApi.GET("/monitors/:id/stats", components.MonitorHandler.GetStatsByID)
-		publicApi.GET("/monitors/:id/history", components.MonitorHandler.GetHistoryByID)
+	// 公开接口（支持可选认证）- 已登录返回全部数据，未登录只返回公开数据
+	publicApiWithOptionalAuth := e.Group("/api")
+	publicApiWithOptionalAuth.Use(OptionalJWTAuthMiddleware(components.AccountHandler))
+	{
+		// 探针信息（公开访问，支持可选认证）- 用于公共展示页面
+		publicApiWithOptionalAuth.GET("/agents", components.AgentHandler.GetAgents)
+		publicApiWithOptionalAuth.GET("/agents/:id", components.AgentHandler.Get)
+		publicApiWithOptionalAuth.GET("/agents/:id/metrics", components.AgentHandler.GetMetrics)
+		publicApiWithOptionalAuth.GET("/agents/:id/metrics/latest", components.AgentHandler.GetLatestMetrics)
+		publicApiWithOptionalAuth.GET("/agents/:id/metrics/network-by-interface", components.AgentHandler.GetNetworkMetricsByInterface)
+
+		// 监控统计数据（公开访问，支持可选认证）- 用于公共展示页面
+		publicApiWithOptionalAuth.GET("/monitors", components.MonitorHandler.GetMonitors)
+		publicApiWithOptionalAuth.GET("/monitors/:id/stats", components.MonitorHandler.GetStatsByID)
+		publicApiWithOptionalAuth.GET("/monitors/:id/history", components.MonitorHandler.GetHistoryByID)
 	}
 
 	// WebSocket 路由（探针连接）
@@ -173,7 +178,6 @@ func setupApi(app *orz.App, components *AppComponents) {
 		adminApi.GET("/agents", components.AgentHandler.Paging)
 		adminApi.GET("/agents/statistics", components.AgentHandler.GetStatistics)
 		adminApi.GET("/agents/:id", components.AgentHandler.GetForAdmin)
-		adminApi.PUT("/agents/:id/name", components.AgentHandler.UpdateName)
 		adminApi.PUT("/agents/:id", components.AgentHandler.UpdateInfo)
 		adminApi.DELETE("/agents/:id", components.AgentHandler.Delete)
 		adminApi.POST("/agents/:id/command", components.AgentHandler.SendCommand)
@@ -376,7 +380,7 @@ func startMonitorStatsCalculation(ctx context.Context, components *AppComponents
 	}
 }
 
-// JWTAuthMiddleware JWT 认证中间件
+// JWTAuthMiddleware JWT 认证中间件（必须登录）
 func JWTAuthMiddleware(accountHandler *handler.AccountHandler) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
@@ -403,7 +407,37 @@ func JWTAuthMiddleware(accountHandler *handler.AccountHandler) echo.MiddlewareFu
 			// 将用户信息存入 context
 			c.Set("userID", claims.UserID)
 			c.Set("username", claims.Username)
+			c.Set("authenticated", true)
 
+			return next(c)
+		}
+	}
+}
+
+// OptionalJWTAuthMiddleware 可选 JWT 认证中间件（尝试解析 token，但不强制要求）
+func OptionalJWTAuthMiddleware(accountHandler *handler.AccountHandler) echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			// 从 Authorization header 获取 token
+			authHeader := c.Request().Header.Get("Authorization")
+			if authHeader != "" {
+				// 检查 Bearer 前缀
+				const bearerPrefix = "Bearer "
+				if len(authHeader) >= len(bearerPrefix) && authHeader[:len(bearerPrefix)] == bearerPrefix {
+					tokenString := authHeader[len(bearerPrefix):]
+
+					// 尝试验证 token
+					claims, err := accountHandler.ValidateToken(tokenString)
+					if err == nil {
+						// token 有效，将用户信息存入 context
+						c.Set("userID", claims.UserID)
+						c.Set("username", claims.Username)
+						c.Set("authenticated", true)
+					}
+				}
+			}
+
+			// 无论 token 是否有效，都继续处理请求
 			return next(c)
 		}
 	}

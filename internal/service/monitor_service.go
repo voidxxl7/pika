@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
@@ -46,6 +47,7 @@ type MonitorTaskRequest struct {
 	Description      string                     `json:"description"`
 	Enabled          bool                       `json:"enabled,omitempty"`
 	ShowTargetPublic bool                       `json:"showTargetPublic,omitempty"` // 在公开页面是否显示目标地址
+	Visibility       string                     `json:"visibility,omitempty"`       // 可见性: public-匿名可见, private-登录可见
 	Interval         int                        `json:"interval"`                   // 检测频率（秒）
 	HTTPConfig       protocol.HTTPMonitorConfig `json:"httpConfig,omitempty"`
 	TCPConfig        protocol.TCPMonitorConfig  `json:"tcpConfig,omitempty"`
@@ -81,6 +83,12 @@ func (s *MonitorService) CreateMonitor(ctx context.Context, req *MonitorTaskRequ
 		interval = 60 // 默认 60 秒
 	}
 
+	// 设置默认可见性
+	visibility := req.Visibility
+	if visibility == "" {
+		visibility = "public" // 默认公开可见
+	}
+
 	task := &models.MonitorTask{
 		ID:               uuid.NewString(),
 		Name:             strings.TrimSpace(req.Name),
@@ -89,6 +97,7 @@ func (s *MonitorService) CreateMonitor(ctx context.Context, req *MonitorTaskRequ
 		Description:      req.Description,
 		Enabled:          req.Enabled,
 		ShowTargetPublic: req.ShowTargetPublic,
+		Visibility:       visibility,
 		Interval:         interval,
 		AgentIds:         datatypes.JSONSlice[string](req.AgentIds),
 		HTTPConfig:       datatypes.NewJSONType(req.HTTPConfig),
@@ -116,6 +125,7 @@ func (s *MonitorService) UpdateMonitor(ctx context.Context, id string, req *Moni
 	task.Target = strings.TrimSpace(req.Target)
 	task.Description = req.Description
 	task.ShowTargetPublic = req.ShowTargetPublic
+	task.Visibility = req.Visibility
 
 	// 更新检测频率
 	interval := req.Interval
@@ -158,16 +168,12 @@ func (s *MonitorService) DeleteMonitor(ctx context.Context, id string) error {
 	})
 }
 
-// GetPublicMonitorOverview 返回公开展示所需的监控配置和汇总统计
-func (s *MonitorService) GetPublicMonitorOverview(ctx context.Context) ([]PublicMonitorOverview, error) {
-	var monitors []models.MonitorTask
-	if err := s.MonitorRepo.GetDB(ctx).
-		Where("enabled = ?", true).
-		Order("name ASC").
-		Find(&monitors).Error; err != nil {
+// ListByAuth 返回公开展示所需的监控配置和汇总统计
+func (s *MonitorService) ListByAuth(ctx context.Context, isAuthenticated bool) ([]PublicMonitorOverview, error) {
+	monitors, err := s.FindByAuth(ctx, isAuthenticated)
+	if err != nil {
 		return nil, err
 	}
-
 	monitorIds := make([]string, 0, len(monitors))
 	for _, monitor := range monitors {
 		monitorIds = append(monitorIds, monitor.ID)
@@ -190,7 +196,7 @@ func (s *MonitorService) GetPublicMonitorOverview(ctx context.Context) ([]Public
 		// 根据 ShowTargetPublic 字段决定是否返回真实的 Target
 		target := monitor.Target
 		if !monitor.ShowTargetPublic {
-			target = "***"
+			target = "******"
 		}
 
 		item := PublicMonitorOverview{
@@ -711,4 +717,26 @@ func (s *MonitorService) GetMonitorHistory(ctx context.Context, monitorID, timeR
 	start := now.Add(-duration).UnixMilli()
 
 	return s.metricRepo.GetAggregatedMonitorMetrics(ctx, monitor.ID, start, end, interval)
+}
+
+// GetMonitorByAuth 根据认证状态获取监控任务（已登录返回全部，未登录返回公开可见）
+func (s *MonitorService) GetMonitorByAuth(ctx context.Context, id string, isAuthenticated bool) (*models.MonitorTask, error) {
+	if isAuthenticated {
+		monitor, err := s.MonitorRepo.FindById(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if !monitor.Enabled {
+			return nil, fmt.Errorf("monitor is disabled")
+		}
+		return &monitor, nil
+	}
+	monitor, err := s.MonitorRepo.FindPublicMonitorByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if !monitor.Enabled {
+		return nil, fmt.Errorf("monitor is disabled")
+	}
+	return monitor, nil
 }

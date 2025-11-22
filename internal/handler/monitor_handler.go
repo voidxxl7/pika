@@ -2,6 +2,7 @@ package handler
 
 import (
 	"github.com/dushixiang/pika/internal/service"
+	"github.com/dushixiang/pika/internal/utils"
 	"github.com/go-orz/orz"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
@@ -118,10 +119,10 @@ func (h *MonitorHandler) Delete(c echo.Context) error {
 	return nil
 }
 
-// GetAllStats 获取所有监控统计数据
-func (h *MonitorHandler) GetAllStats(c echo.Context) error {
+// GetMonitors 获取所有监控统计数据
+func (h *MonitorHandler) GetMonitors(c echo.Context) error {
 	ctx := c.Request().Context()
-	stats, err := h.monitorService.GetPublicMonitorOverview(ctx)
+	stats, err := h.monitorService.ListByAuth(ctx, utils.IsAuthenticated(c))
 	if err != nil {
 		return err
 	}
@@ -129,11 +130,16 @@ func (h *MonitorHandler) GetAllStats(c echo.Context) error {
 	return orz.Ok(c, stats)
 }
 
-// GetStatsByID 获取指定监控任务的统计数据（所有探针）
+// GetStatsByID 获取指定监控任务的统计数据（公开接口，已登录返回全部，未登录返回公开可见）
 func (h *MonitorHandler) GetStatsByID(c echo.Context) error {
 	id := c.Param("id")
-
 	ctx := c.Request().Context()
+
+	// 验证监控任务访问权限
+	if _, err := h.monitorService.GetMonitorByAuth(ctx, id, utils.IsAuthenticated(c)); err != nil {
+		return err
+	}
+
 	stats, err := h.monitorService.GetMonitorStatsByID(ctx, id)
 	if err != nil {
 		return err
@@ -142,9 +148,16 @@ func (h *MonitorHandler) GetStatsByID(c echo.Context) error {
 	return orz.Ok(c, stats)
 }
 
-// GetHistoryByID 获取指定监控任务的历史响应时间数据
+// GetHistoryByID 获取指定监控任务的历史响应时间数据（公开接口，已登录返回全部，未登录返回公开可见）
 func (h *MonitorHandler) GetHistoryByID(c echo.Context) error {
 	id := c.Param("id")
+	ctx := c.Request().Context()
+
+	// 验证监控任务访问权限
+	if _, err := h.monitorService.GetMonitorByAuth(ctx, id, utils.IsAuthenticated(c)); err != nil {
+		return err
+	}
+
 	timeRange := c.QueryParam("range")
 
 	// 默认时间范围为 5 分钟
@@ -152,7 +165,6 @@ func (h *MonitorHandler) GetHistoryByID(c echo.Context) error {
 		timeRange = "5m"
 	}
 
-	ctx := c.Request().Context()
 	history, err := h.monitorService.GetMonitorHistory(ctx, id, timeRange)
 	if err != nil {
 		return err
