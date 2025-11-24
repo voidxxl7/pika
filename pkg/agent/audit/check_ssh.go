@@ -100,20 +100,7 @@ func (sc *SSHChecker) Check() protocol.SecurityCheck {
 		})
 	}
 
-	// 3. 检查 SSH 后门进程
-	suspiciousSSHD := sc.checkSuspiciousSSHD()
-	if len(suspiciousSSHD) > 0 {
-		check.Status = StatusFail
-		for _, sshd := range suspiciousSSHD {
-			check.Details = append(check.Details, protocol.SecurityCheckSub{
-				Name:    "backdoor_sshd",
-				Status:  StatusFail,
-				Message: sshd,
-			})
-		}
-	}
-
-	// 4. 检查 SSH 二进制文件完整性
+	// 3. 检查 SSH 二进制文件完整性
 	for _, binPath := range sc.config.SSHConfig.BinaryPaths {
 		info, err := os.Stat(binPath)
 		if err != nil {
@@ -162,7 +149,7 @@ func (sc *SSHChecker) Check() protocol.SecurityCheck {
 	case StatusWarn:
 		check.Message = "SSH配置存在风险"
 	case StatusFail:
-		check.Message = "检测到SSH后门"
+		check.Message = "SSH配置存在严重风险"
 	}
 
 	return check
@@ -305,37 +292,6 @@ func (sc *SSHChecker) readSSHConfig() map[string]string {
 	}
 
 	return config
-}
-
-// checkSuspiciousSSHD 检查可疑的 sshd 进程
-func (sc *SSHChecker) checkSuspiciousSSHD() []string {
-	var suspicious []string
-
-	procs, err := sc.cache.Get()
-	if err != nil {
-		return suspicious
-	}
-
-	sshdCount := 0
-	for _, p := range procs {
-		name, _ := p.Name()
-		if strings.Contains(name, "sshd") {
-			sshdCount++
-			exe, _ := p.Exe()
-
-			// 检查 sshd 路径是否正常
-			if exe != "" && !strings.HasPrefix(exe, "/usr/sbin/sshd") {
-				suspicious = append(suspicious, fmt.Sprintf("异常sshd路径: %s (PID: %d)", exe, p.Pid))
-			}
-		}
-	}
-
-	// 如果有多个 sshd 守护进程可能异常
-	if sshdCount > 10 {
-		suspicious = append(suspicious, fmt.Sprintf("sshd进程数异常: %d", sshdCount))
-	}
-
-	return suspicious
 }
 
 // UserDirectory 用户目录信息
