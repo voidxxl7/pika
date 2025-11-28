@@ -149,6 +149,7 @@ var (
 	serverEndpoint string
 	serverAPIKey   string
 	agentName      string
+	autoConfirm    bool
 )
 
 func init() {
@@ -159,6 +160,7 @@ func init() {
 	registerCmd.Flags().StringVarP(&serverEndpoint, "endpoint", "e", "", "服务端地址 (例如: http://your-server.com:18888)")
 	registerCmd.Flags().StringVarP(&serverAPIKey, "token", "t", "", "API Token")
 	registerCmd.Flags().StringVarP(&agentName, "name", "n", "", "探针名称（默认使用主机名）")
+	registerCmd.Flags().BoolVarP(&autoConfirm, "yes", "y", false, "自动确认配置并继续安装")
 
 	// 添加子命令
 	rootCmd.AddCommand(versionCmd)
@@ -464,12 +466,16 @@ func registerAgent(cmd *cobra.Command, args []string) {
 	log.Println()
 
 	// 4. 确认
-	fmt.Print("❓ 确认以上配置并继续安装? (y/N): ")
-	confirmInput, _ := reader.ReadString('\n')
-	confirm := strings.ToLower(strings.TrimSpace(confirmInput))
-	if confirm != "y" && confirm != "yes" {
-		log.Println("❌ 已取消注册")
-		return
+	if autoConfirm {
+		log.Println("✅ 已自动确认配置，继续安装")
+	} else {
+		fmt.Print("❓ 确认以上配置并继续安装? (y/N): ")
+		confirmInput, _ := reader.ReadString('\n')
+		confirm := strings.ToLower(strings.TrimSpace(confirmInput))
+		if confirm != "y" && confirm != "yes" {
+			log.Println("❌ 已取消注册")
+			return
+		}
 	}
 
 	log.Println()

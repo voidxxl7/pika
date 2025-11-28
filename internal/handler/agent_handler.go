@@ -910,8 +910,7 @@ register_agent() {
     local token="` + token + `"
 
     echo_info "正在注册探针..."
-
-	/usr/local/bin/$AGENT_NAME register --endpoint "$endpoint" --token "$token"
+    /usr/local/bin/$AGENT_NAME register --endpoint "$endpoint" --token "$token" --yes
 }
 
 # 主流程
