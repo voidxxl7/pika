@@ -407,6 +407,9 @@ func (h *AgentHandler) GetMetrics(c echo.Context) error {
 	metricType := c.QueryParam("type")
 	rangeParam := c.QueryParam("range")
 	interfaceName := c.QueryParam("interface") // 网卡过滤参数（仅对 network 类型有效）
+	if interfaceName == "" {
+		interfaceName = "all"
+	}
 
 	// 验证指标类型
 	validTypes := map[string]bool{
