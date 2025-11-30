@@ -7,6 +7,7 @@ import (
 
 	"github.com/dushixiang/pika/internal/models"
 	"github.com/dushixiang/pika/internal/service"
+	"github.com/go-orz/orz"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 )
@@ -152,8 +153,9 @@ func (h *PropertyHandler) GetLogo(c echo.Context) error {
 
 // GetMetricsConfig 获取指标配置（公开访问）
 func (h *PropertyHandler) GetMetricsConfig(c echo.Context) error {
-	config := h.service.GetMetricsConfig(c.Request().Context())
-	return c.JSON(http.StatusOK, config)
+	return c.JSON(http.StatusOK, orz.Map{
+		"options": models.TimeRangeOptions,
+	})
 }
 
 // TestNotificationChannel 测试通知渠道（从数据库读取配置）

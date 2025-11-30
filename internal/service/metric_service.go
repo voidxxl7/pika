@@ -476,14 +476,12 @@ func (s *MetricService) GetMetrics(ctx context.Context, agentID, metricType stri
 
 // DetermineInterval 根据配置、用户请求和时间范围决定聚合粒度
 func (s *MetricService) DetermineInterval(ctx context.Context, start, end int64, requested int) int {
-	cfg := s.getMetricsConfig(ctx)
-
 	interval := requested
 	if interval <= 0 {
 		interval = calculateBaseInterval(start, end)
 	}
 
-	interval = adjustIntervalForMaxPoints(start, end, interval, cfg.MaxQueryPoints)
+	interval = adjustIntervalForMaxPoints(start, end, interval, defaultMaxQueryPoints)
 	return interval
 }
 
@@ -604,7 +602,6 @@ func chooseAggregationBucket(interval int) int {
 func (s *MetricService) getMetricsConfig(ctx context.Context) models.MetricsConfig {
 	cfg := models.MetricsConfig{
 		RetentionHours: defaultMetricsRetentionHours,
-		MaxQueryPoints: defaultMaxQueryPoints,
 	}
 
 	if s.propertyService == nil {
@@ -614,9 +611,6 @@ func (s *MetricService) getMetricsConfig(ctx context.Context) models.MetricsConf
 	loaded := s.propertyService.GetMetricsConfig(ctx)
 	if loaded.RetentionHours > 0 {
 		cfg.RetentionHours = loaded.RetentionHours
-	}
-	if loaded.MaxQueryPoints > 0 {
-		cfg.MaxQueryPoints = loaded.MaxQueryPoints
 	}
 	return cfg
 }

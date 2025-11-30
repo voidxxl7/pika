@@ -55,9 +55,19 @@ type TimeRangeOption struct {
 	Value string `json:"value"` // 值，如 "15m"
 }
 
+var TimeRangeOptions = []TimeRangeOption{
+	{Label: "15分钟", Value: "15m"},
+	{Label: "30分钟", Value: "30m"},
+	{Label: "1小时", Value: "1h"},
+	{Label: "3小时", Value: "3h"},
+	{Label: "6小时", Value: "6h"},
+	{Label: "12小时", Value: "12h"},
+	{Label: "1天", Value: "1d"},
+	{Label: "3天", Value: "3d"},
+	{Label: "7天", Value: "7d"},
+}
+
 // MetricsConfig 指标数据配置
 type MetricsConfig struct {
-	RetentionHours   int               `json:"retentionHours"`   // 原始数据保留小时数（默认168小时=7天）
-	MaxQueryPoints   int               `json:"maxQueryPoints"`   // 查询返回的最大数据点数（默认300）
-	TimeRangeOptions []TimeRangeOption `json:"timeRangeOptions"` // 前端时间范围选项
+	RetentionHours int `json:"retentionHours"` // 原始数据保留小时数（默认168小时=7天）
 }

@@ -5,8 +5,12 @@ import NotificationChannels from './NotificationChannels';
 import SystemConfig from './SystemConfig';
 import MetricsConfig from './MetricsConfig';
 import {PageHeader} from "@/components";
+import {useSearchParams} from "react-router-dom";
 
 const Settings = () => {
+
+    const [searchParams, setSearchParams] = useSearchParams({tab: 'system'});
+
     const items = [
         {
             key: 'system',
@@ -56,9 +60,12 @@ const Settings = () => {
                 title="系统设置"
                 description="CONFIGURATION"
             />
-            <Tabs defaultActiveKey="system"
-                  tabPosition={'left'}
+            <Tabs tabPosition={'left'}
                   items={items}
+                  activeKey={searchParams.get('tab')}
+                  onChange={(key) => {
+                      setSearchParams({tab: key});
+                  }}
             />
         </div>
     );

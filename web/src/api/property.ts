@@ -43,12 +43,6 @@ export const getMetricsConfig = async (): Promise<MetricsConfig> => {
     return getProperty<MetricsConfig>(PROPERTY_ID_METRICS_CONFIG);
 };
 
-// 获取指标配置（公开访问，用于前端获取时间范围选项等）
-export const getMetricsConfigPublic = async (): Promise<MetricsConfig> => {
-    const response = await get<MetricsConfig>('/metrics-config');
-    return response.data;
-};
-
 // 保存指标配置
 export const saveMetricsConfig = async (config: MetricsConfig): Promise<void> => {
     return saveProperty(PROPERTY_ID_METRICS_CONFIG, '指标配置', config);

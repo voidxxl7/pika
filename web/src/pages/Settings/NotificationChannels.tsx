@@ -160,7 +160,7 @@ const NotificationChannels = () => {
     if (isLoading) {
         return (
             <div className="flex justify-center items-center py-20">
-                <Spin size="large"/>
+                <Spin />
             </div>
         );
     }

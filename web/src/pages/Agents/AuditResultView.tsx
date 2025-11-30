@@ -466,7 +466,7 @@ const AuditResultView = ({result}: AuditResultViewProps) => {
     ];
 
     return (
-        <Space direction="vertical" size="large" style={{width: '100%'}}>
+        <Space direction="vertical"  style={{width: '100%'}}>
             {/* 风险概览 */}
             {risks.length > 0 && (
                 <Card

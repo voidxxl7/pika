@@ -77,7 +77,7 @@ const AgentDetail = () => {
     if (loading && !agent) {
         return (
             <div className="text-center py-24">
-                <Spin size="large"/>
+                <Spin/>
             </div>
         );
     }
@@ -286,7 +286,7 @@ const AgentDetail = () => {
                 activeKey={activeTab}
                 onChange={setActiveTab}
                 items={tabItems}
-                size="large"
+
             />
         </div>
     );

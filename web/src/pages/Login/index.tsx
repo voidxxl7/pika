@@ -86,7 +86,7 @@ const Login = () => {
                 <Form
                     name="login"
                     layout="vertical"
-                    size="large"
+                    
                     onFinish={onFinish}
                     autoComplete="off"
                     requiredMark={false} // 4. 隐藏必填星号，界面更干净

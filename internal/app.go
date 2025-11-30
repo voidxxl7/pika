@@ -187,6 +187,8 @@ func setupApi(app *orz.App, components *AppComponents) {
 		publicApiWithOptionalAuth.GET("/agents/:id/metrics", components.AgentHandler.GetMetrics)
 		publicApiWithOptionalAuth.GET("/agents/:id/metrics/latest", components.AgentHandler.GetLatestMetrics)
 		publicApiWithOptionalAuth.GET("/agents/:id/network-interfaces", components.AgentHandler.GetAvailableNetworkInterfaces)
+		// 指标配置（公开访问）- 用于获取时间范围选项等配置
+		publicApiWithOptionalAuth.GET("/metrics-config", components.PropertyHandler.GetMetricsConfig)
 
 		// 监控统计数据（公开访问，支持可选认证）- 用于公共展示页面
 		publicApiWithOptionalAuth.GET("/monitors", components.MonitorHandler.GetMonitors)
@@ -195,9 +197,6 @@ func setupApi(app *orz.App, components *AppComponents) {
 
 		// Logo（公开访问）- 用于公共页面只获取 Logo
 		publicApiWithOptionalAuth.GET("/logo", components.PropertyHandler.GetLogo)
-
-		// 指标配置（公开访问）- 用于获取时间范围选项等配置
-		publicApiWithOptionalAuth.GET("/metrics-config", components.PropertyHandler.GetMetricsConfig)
 	}
 
 	// WebSocket 路由（探针连接）

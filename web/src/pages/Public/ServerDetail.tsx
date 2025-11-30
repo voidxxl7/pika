@@ -29,10 +29,10 @@ import {
     getAgent,
     getAgentLatestMetrics,
     getAgentMetrics,
-    getAvailableNetworkInterfaces,
     type GetAgentMetricsRequest,
+    getAvailableNetworkInterfaces,
 } from '@/api/agent.ts';
-import { getMetricsConfigPublic, type TimeRangeOption } from '@/api/property.ts';
+import {type TimeRangeOption} from '@/api/property.ts';
 import type {
     Agent,
     AggregatedCPUMetric,
@@ -480,52 +480,26 @@ const CustomTooltip = ({active, payload, label, unit = '%'}: MetricsTooltipProps
     );
 };
 
+const timeRangeOptions = [
+    {label: '15分钟', value: '15m'},
+    {label: '30分钟', value: '30m'},
+    {label: '1小时', value: '1h'},
+    {label: '3小时', value: '3h'},
+    {label: '6小时', value: '6h'},
+    {label: '12小时', value: '12h'},
+    {label: '1天', value: '1d'},
+    {label: '3天', value: '3d'},
+    {label: '7天', value: '7d'},
+]
+
 const ServerDetail = () => {
     const {id} = useParams<{ id: string }>();
     const navigate = useNavigate();
 
     const [timeRange, setTimeRange] = useState<string>('15m');
-    const [timeRangeOptions, setTimeRangeOptions] = useState<TimeRangeOption[]>([]);
     const [selectedInterface, setSelectedInterface] = useState<string>('all');
     const {agent, latestMetrics, loading} = useAgentOverview(id);
     const metricsData = useAggregatedMetrics(id, timeRange, selectedInterface);
-
-    // 从后端获取时间范围选项
-    useEffect(() => {
-        getMetricsConfigPublic()
-            .then(config => {
-                if (config.timeRangeOptions && config.timeRangeOptions.length > 0) {
-                    setTimeRangeOptions(config.timeRangeOptions);
-                } else {
-                    // 如果后端没有配置，使用默认值
-                    setTimeRangeOptions([
-                        {label: '15分钟', value: '15m'},
-                        {label: '30分钟', value: '30m'},
-                        {label: '1小时', value: '1h'},
-                        {label: '3小时', value: '3h'},
-                        {label: '6小时', value: '6h'},
-                        {label: '12小时', value: '12h'},
-                        {label: '1天', value: '1d'},
-                        {label: '3天', value: '3d'},
-                        {label: '7天', value: '7d'},
-                    ]);
-                }
-            })
-            .catch(() => {
-                // 如果请求失败，使用默认值
-                setTimeRangeOptions([
-                    {label: '15分钟', value: '15m'},
-                    {label: '30分钟', value: '30m'},
-                    {label: '1小时', value: '1h'},
-                    {label: '3小时', value: '3h'},
-                    {label: '6小时', value: '6h'},
-                    {label: '12小时', value: '12h'},
-                    {label: '1天', value: '1d'},
-                    {label: '3天', value: '3d'},
-                    {label: '7天', value: '7d'},
-                ]);
-            });
-    }, []);
 
     const cpuChartData = useMemo(
         () =>
@@ -993,7 +967,8 @@ const ServerDetail = () => {
                     <Card
                         title="历史趋势"
                         description="针对选定时间范围展示 CPU、内存与网络的变化趋势"
-                        action={<TimeRangeSelector value={timeRange} onChange={setTimeRange} options={timeRangeOptions}/>}
+                        action={<TimeRangeSelector value={timeRange} onChange={setTimeRange}
+                                                   options={timeRangeOptions}/>}
                     >
                         <div className="grid gap-6 md:grid-cols-2">
                             <section>
@@ -1129,13 +1104,19 @@ const ServerDetail = () => {
                                                     const downloadKey = `${interfaceName}_download`;
                                                     return (
                                                         <>
-                                                            <linearGradient id={`color-${uploadKey}`} x1="0" y1="0" x2="0" y2="1">
-                                                                <stop offset="5%" stopColor={colorConfig.upload} stopOpacity={0.3}/>
-                                                                <stop offset="95%" stopColor={colorConfig.upload} stopOpacity={0}/>
+                                                            <linearGradient id={`color-${uploadKey}`} x1="0" y1="0"
+                                                                            x2="0" y2="1">
+                                                                <stop offset="5%" stopColor={colorConfig.upload}
+                                                                      stopOpacity={0.3}/>
+                                                                <stop offset="95%" stopColor={colorConfig.upload}
+                                                                      stopOpacity={0}/>
                                                             </linearGradient>
-                                                            <linearGradient id={`color-${downloadKey}`} x1="0" y1="0" x2="0" y2="1">
-                                                                <stop offset="5%" stopColor={colorConfig.download} stopOpacity={0.3}/>
-                                                                <stop offset="95%" stopColor={colorConfig.download} stopOpacity={0}/>
+                                                            <linearGradient id={`color-${downloadKey}`} x1="0" y1="0"
+                                                                            x2="0" y2="1">
+                                                                <stop offset="5%" stopColor={colorConfig.download}
+                                                                      stopOpacity={0.3}/>
+                                                                <stop offset="95%" stopColor={colorConfig.download}
+                                                                      stopOpacity={0}/>
                                                             </linearGradient>
                                                         </>
                                                     );
