@@ -137,7 +137,7 @@ func (s *MetricService) HandleMetricData(ctx context.Context, agentID string, me
 		// 保存合并后的总和数据（mount_point 字段设置为空字符串）
 		totalMetric := &models.DiskMetric{
 			AgentID:      agentID,
-			MountPoint:   "", // 空字符串表示所有磁盘的合并数据
+			MountPoint:   "all",
 			Total:        totalTotal,
 			Used:         totalUsed,
 			Free:         totalFree,
@@ -186,7 +186,7 @@ func (s *MetricService) HandleMetricData(ctx context.Context, agentID string, me
 		// 保存合并后的总和数据（interface 字段设置为空字符串）
 		totalMetric := &models.NetworkMetric{
 			AgentID:        agentID,
-			Interface:      "", // 空字符串表示所有网卡的合并数据
+			Interface:      "all", // 空字符串表示所有网卡的合并数据
 			BytesSentRate:  totalSentRate,
 			BytesRecvRate:  totalRecvRate,
 			BytesSentTotal: totalSentTotal,
@@ -250,7 +250,7 @@ func (s *MetricService) HandleMetricData(ctx context.Context, agentID string, me
 		// 保存合并后的数据（device 字段设置为空或 "all"）
 		metric := &models.DiskIOMetric{
 			AgentID:        agentID,
-			Device:         "", // 空字符串表示所有磁盘的合并数据
+			Device:         "all",
 			ReadCount:      totalReadCount,
 			WriteCount:     totalWriteCount,
 			ReadBytes:      totalReadBytes,

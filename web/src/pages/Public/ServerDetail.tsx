@@ -335,7 +335,7 @@ const useAgentOverview = (agentId?: string) => {
     return {agent, latestMetrics, loading};
 };
 
-const useAggregatedMetrics = (agentId: string | undefined, range: string) => {
+const useAggregatedMetrics = (agentId: string | undefined, range: string, interfaceName?: string) => {
     const [metrics, setMetrics] = useState<MetricsState>(() => createEmptyMetricsState());
 
     useEffect(() => {
@@ -349,7 +349,14 @@ const useAggregatedMetrics = (agentId: string | undefined, range: string) => {
         const fetchMetrics = async () => {
             try {
                 const responses = await Promise.all(
-                    metricRequestConfig.map(({type}) => getAgentMetrics({agentId, type, range})),
+                    metricRequestConfig.map(({type}) => {
+                        // 只有 network 类型才需要传递 interface 参数
+                        const params: GetAgentMetricsRequest = {agentId, type, range};
+                        if (type === 'network' && interfaceName && interfaceName !== 'all') {
+                            params.interface = interfaceName;
+                        }
+                        return getAgentMetrics(params);
+                    }),
                 );
                 if (cancelled) return;
                 const nextState = createEmptyMetricsState();
@@ -368,7 +375,7 @@ const useAggregatedMetrics = (agentId: string | undefined, range: string) => {
             cancelled = true;
             clearInterval(timer);
         };
-    }, [agentId, range]);
+    }, [agentId, range, interfaceName]);
 
     return metrics;
 };
@@ -481,7 +488,7 @@ const ServerDetail = () => {
     const [timeRangeOptions, setTimeRangeOptions] = useState<TimeRangeOption[]>([]);
     const [selectedInterface, setSelectedInterface] = useState<string>('all');
     const {agent, latestMetrics, loading} = useAgentOverview(id);
-    const metricsData = useAggregatedMetrics(id, timeRange);
+    const metricsData = useAggregatedMetrics(id, timeRange, selectedInterface);
 
     // 从后端获取时间范围选项
     useEffect(() => {
@@ -576,12 +583,12 @@ const ServerDetail = () => {
         };
     }, [id]);
 
+    // 当网卡列表变化时，如果当前选中的网卡不在列表中，重置为 'all'
     useEffect(() => {
-        if (selectedInterface === 'all') {
-            return;
-        }
-        if (!availableInterfaces.includes(selectedInterface)) {
-            setSelectedInterface('all');
+        if (selectedInterface !== 'all' && availableInterfaces.length > 0) {
+            if (!availableInterfaces.includes(selectedInterface)) {
+                setSelectedInterface('all');
+            }
         }
     }, [availableInterfaces, selectedInterface]);
 
@@ -599,14 +606,14 @@ const ServerDetail = () => {
                 acc[time] = {time};
             }
 
-            // 根据选择的网卡过滤
-            if (selectedInterface === 'all' || item.interface === selectedInterface) {
-                const uploadKey = `${item.interface}_upload`;
-                const downloadKey = `${item.interface}_download`;
-                // 转换为 MB/s
-                acc[time][uploadKey] = Number((item.maxSentRate / 1024 / 1024).toFixed(2));
-                acc[time][downloadKey] = Number((item.maxRecvRate / 1024 / 1024).toFixed(2));
-            }
+            // 后端已经根据 interface 参数返回了对应的数据
+            // 使用当前选中的 interface 作为标识（'all' 或具体网卡名）
+            const interfaceName = selectedInterface === 'all' ? 'total' : selectedInterface;
+            const uploadKey = `${interfaceName}_upload`;
+            const downloadKey = `${interfaceName}_download`;
+            // 转换为 MB/s
+            acc[time][uploadKey] = Number((item.maxSentRate / 1024 / 1024).toFixed(2));
+            acc[time][downloadKey] = Number((item.maxRecvRate / 1024 / 1024).toFixed(2));
 
             return acc;
         }, {} as Record<string, any>);
@@ -1102,7 +1109,7 @@ const ServerDetail = () => {
                                             onChange={(e) => setSelectedInterface(e.target.value)}
                                             className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm text-slate-700 dark:text-slate-200 hover:border-blue-300 dark:hover:border-blue-500 focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-500/40"
                                         >
-                                            <option value="all">所有网卡</option>
+                                            {/*<option value="all">所有网卡（聚合）</option>*/}
                                             {availableInterfaces.map((iface) => (
                                                 <option key={iface} value={iface}>
                                                     {iface}
@@ -1113,7 +1120,27 @@ const ServerDetail = () => {
                                 </div>
                                 {networkChartData.length > 0 ? (
                                     <ResponsiveContainer width="100%" height={220}>
-                                        <LineChart data={networkChartData}>
+                                        <AreaChart data={networkChartData}>
+                                            <defs>
+                                                {(() => {
+                                                    const interfaceName = selectedInterface === 'all' ? 'total' : selectedInterface;
+                                                    const colorConfig = INTERFACE_COLORS[0];
+                                                    const uploadKey = `${interfaceName}_upload`;
+                                                    const downloadKey = `${interfaceName}_download`;
+                                                    return (
+                                                        <>
+                                                            <linearGradient id={`color-${uploadKey}`} x1="0" y1="0" x2="0" y2="1">
+                                                                <stop offset="5%" stopColor={colorConfig.upload} stopOpacity={0.3}/>
+                                                                <stop offset="95%" stopColor={colorConfig.upload} stopOpacity={0}/>
+                                                            </linearGradient>
+                                                            <linearGradient id={`color-${downloadKey}`} x1="0" y1="0" x2="0" y2="1">
+                                                                <stop offset="5%" stopColor={colorConfig.download} stopOpacity={0.3}/>
+                                                                <stop offset="95%" stopColor={colorConfig.download} stopOpacity={0}/>
+                                                            </linearGradient>
+                                                        </>
+                                                    );
+                                                })()}
+                                            </defs>
                                             <CartesianGrid stroke="currentColor" strokeDasharray="4 4"
                                                            className="stroke-slate-200 dark:stroke-slate-600"/>
                                             <XAxis
@@ -1130,37 +1157,39 @@ const ServerDetail = () => {
                                             />
                                             <Tooltip content={<CustomTooltip unit=" MB/s"/>}/>
                                             <Legend/>
-                                            {/* 动态渲染每个网卡的上行和下行曲线 */}
-                                            {availableInterfaces
-                                                .filter(iface => selectedInterface === 'all' || iface === selectedInterface)
-                                                .map((iface, index) => {
-                                                    const colorConfig = INTERFACE_COLORS[index % INTERFACE_COLORS.length];
-                                                    const uploadKey = `${iface}_upload`;
-                                                    const downloadKey = `${iface}_download`;
-                                                    return (
-                                                        <React.Fragment key={iface}>
-                                                            <Line
-                                                                type="monotone"
-                                                                dataKey={uploadKey}
-                                                                name={`${iface} 上行`}
-                                                                stroke={colorConfig.upload}
-                                                                strokeWidth={2}
-                                                                dot={false}
-                                                                activeDot={{r: 3}}
-                                                            />
-                                                            <Line
-                                                                type="monotone"
-                                                                dataKey={downloadKey}
-                                                                name={`${iface} 下行`}
-                                                                stroke={colorConfig.download}
-                                                                strokeWidth={2}
-                                                                dot={false}
-                                                                activeDot={{r: 3}}
-                                                            />
-                                                        </React.Fragment>
-                                                    );
-                                                })}
-                                        </LineChart>
+                                            {/* 渲染当前选中网卡的上行和下行区域 */}
+                                            {(() => {
+                                                // 根据 selectedInterface 确定显示的网卡名称和数据 key
+                                                const interfaceName = selectedInterface === 'all' ? 'total' : selectedInterface;
+                                                const colorConfig = INTERFACE_COLORS[0]; // 使用第一组颜色
+                                                const uploadKey = `${interfaceName}_upload`;
+                                                const downloadKey = `${interfaceName}_download`;
+                                                const displayName = selectedInterface === 'all' ? '总计' : selectedInterface;
+
+                                                return (
+                                                    <>
+                                                        <Area
+                                                            type="monotone"
+                                                            dataKey={uploadKey}
+                                                            name={`${displayName} 上行`}
+                                                            stroke={colorConfig.upload}
+                                                            strokeWidth={2}
+                                                            fill={`url(#color-${uploadKey})`}
+                                                            activeDot={{r: 3}}
+                                                        />
+                                                        <Area
+                                                            type="monotone"
+                                                            dataKey={downloadKey}
+                                                            name={`${displayName} 下行`}
+                                                            stroke={colorConfig.download}
+                                                            strokeWidth={2}
+                                                            fill={`url(#color-${downloadKey})`}
+                                                            activeDot={{r: 3}}
+                                                        />
+                                                    </>
+                                                );
+                                            })()}
+                                        </AreaChart>
                                     </ResponsiveContainer>
                                 ) : (
                                     <ChartPlaceholder subtitle="稍后再次尝试刷新网络流量"/>
@@ -1177,7 +1206,17 @@ const ServerDetail = () => {
                                 </h3>
                                 {diskIOChartData.length > 0 ? (
                                     <ResponsiveContainer width="100%" height={220}>
-                                        <LineChart data={diskIOChartData}>
+                                        <AreaChart data={diskIOChartData}>
+                                            <defs>
+                                                <linearGradient id="colorDiskRead" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="5%" stopColor="#2C70F6" stopOpacity={0.3}/>
+                                                    <stop offset="95%" stopColor="#2C70F6" stopOpacity={0}/>
+                                                </linearGradient>
+                                                <linearGradient id="colorDiskWrite" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="5%" stopColor="#6FD598" stopOpacity={0.3}/>
+                                                    <stop offset="95%" stopColor="#6FD598" stopOpacity={0}/>
+                                                </linearGradient>
+                                            </defs>
                                             <CartesianGrid stroke="currentColor" strokeDasharray="4 4"
                                                            className="stroke-slate-200 dark:stroke-slate-600"/>
                                             <XAxis
@@ -1194,25 +1233,25 @@ const ServerDetail = () => {
                                             />
                                             <Tooltip content={<CustomTooltip unit=" MB"/>}/>
                                             <Legend/>
-                                            <Line
+                                            <Area
                                                 type="monotone"
                                                 dataKey="read"
                                                 name="读取"
                                                 stroke="#2C70F6"
                                                 strokeWidth={2}
-                                                dot={false}
+                                                fill="url(#colorDiskRead)"
                                                 activeDot={{r: 3}}
                                             />
-                                            <Line
+                                            <Area
                                                 type="monotone"
                                                 dataKey="write"
                                                 name="写入"
                                                 stroke="#6FD598"
                                                 strokeWidth={2}
-                                                dot={false}
+                                                fill="url(#colorDiskWrite)"
                                                 activeDot={{r: 3}}
                                             />
-                                        </LineChart>
+                                        </AreaChart>
                                     </ResponsiveContainer>
                                 ) : (
                                     <ChartPlaceholder subtitle="暂无磁盘 I/O 采集数据"/>
