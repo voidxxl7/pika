@@ -90,8 +90,14 @@ func (s *MetricService) HandleMetricData(ctx context.Context, agentID string, me
 		if err := json.Unmarshal(data, &diskDataList); err != nil {
 			return err
 		}
-		// 保存每个磁盘的数据
+
+		// 合并所有磁盘的数据用于保存总和
+		var totalTotal, totalUsed, totalFree uint64
+		var maxUsagePercent float64
+
+		// 保存每个磁盘的数据，同时累加总和
 		for _, diskData := range diskDataList {
+			// 保存单个磁盘数据
 			metric := &models.DiskMetric{
 				AgentID:      agentID,
 				MountPoint:   diskData.MountPoint,
@@ -107,8 +113,27 @@ func (s *MetricService) HandleMetricData(ctx context.Context, agentID string, me
 					zap.String("agentID", agentID),
 					zap.String("mountPoint", diskData.MountPoint))
 			}
+
+			// 累加所有磁盘的数据
+			totalTotal += diskData.Total
+			totalUsed += diskData.Used
+			totalFree += diskData.Free
+			if diskData.UsagePercent > maxUsagePercent {
+				maxUsagePercent = diskData.UsagePercent
+			}
 		}
-		return nil
+
+		// 保存合并后的总和数据（mount_point 字段设置为空字符串）
+		totalMetric := &models.DiskMetric{
+			AgentID:      agentID,
+			MountPoint:   "", // 空字符串表示所有磁盘的合并数据
+			Total:        totalTotal,
+			Used:         totalUsed,
+			Free:         totalFree,
+			UsagePercent: maxUsagePercent, // 使用率取最大值
+			Timestamp:    now,
+		}
+		return s.metricRepo.SaveDiskMetric(ctx, totalMetric)
 
 	case protocol.MetricTypeNetwork:
 		// Network现在是数组,需要批量处理

@@ -295,7 +295,8 @@ type AggregatedDiskMetric struct {
 	Total      uint64  `json:"total"`
 }
 
-// GetDiskMetrics 获取聚合后的磁盘指标（始终返回聚合数据）
+// GetDiskMetrics 获取聚合后的磁盘指标（返回预聚合的总和数据）
+// 直接查询 mount_point=” 的预聚合记录
 func (r *MetricRepo) GetDiskMetrics(ctx context.Context, agentID string, start, end int64, interval int) ([]AggregatedDiskMetric, error) {
 	var metrics []AggregatedDiskMetric
 
@@ -306,14 +307,14 @@ func (r *MetricRepo) GetDiskMetrics(ctx context.Context, agentID string, start, 
 			MAX(usage_percent) as max_usage,
 			MAX(total) as total
 		FROM disk_metrics
-		WHERE agent_id = ? AND timestamp >= ? AND timestamp <= ?
+		WHERE agent_id = ? AND timestamp >= ? AND timestamp <= ? AND mount_point = ?
 		GROUP BY 1, mount_point
-		ORDER BY timestamp ASC, mount_point
+		ORDER BY timestamp ASC
 	`
 
 	intervalMs := int64(interval * 1000)
 	err := r.db.WithContext(ctx).
-		Raw(query, intervalMs, intervalMs, agentID, start, end).
+		Raw(query, intervalMs, intervalMs, agentID, start, end, ""). // 空字符串查询总和记录
 		Scan(&metrics).Error
 
 	return metrics, err
@@ -958,14 +959,16 @@ func (r *MetricRepo) GetMemoryMetricsAgg(ctx context.Context, agentID string, st
 	return metrics, err
 }
 
-// GetDiskMetricsAgg 从聚合表获取磁盘指标
+// GetDiskMetricsAgg 从聚合表获取磁盘指标（返回预聚合的总和数据）
+// 直接查询 mount_point=” 的预聚合记录
 func (r *MetricRepo) GetDiskMetricsAgg(ctx context.Context, agentID string, start, end int64, bucketSeconds int) ([]AggregatedDiskMetric, error) {
 	var metrics []AggregatedDiskMetric
 	err := r.db.WithContext(ctx).
 		Table("disk_metrics_aggs").
 		Select("bucket_start as timestamp, mount_point, max_usage, total").
-		Where("agent_id = ? AND bucket_seconds = ? AND bucket_start >= ? AND bucket_start < ?", agentID, bucketSeconds, start, end).
-		Order("bucket_start, mount_point").
+		Where("agent_id = ? AND bucket_seconds = ? AND bucket_start >= ? AND bucket_start < ? AND mount_point = ?",
+			agentID, bucketSeconds, start, end, ""). // 空字符串查询总和记录
+		Order("bucket_start").
 		Scan(&metrics).Error
 	return metrics, err
 }
