@@ -331,3 +331,24 @@ type AggregationProgress struct {
 func (AggregationProgress) TableName() string {
 	return "aggregation_progress"
 }
+
+// AggregatedMonitorMetricModel 监控指标聚合表
+type AggregatedMonitorMetricModel struct {
+	ID            uint    `gorm:"primaryKey;autoIncrement" json:"id"`
+	MonitorID     string  `gorm:"index:idx_monitoragg_monitor_agent_bucket,priority:1;uniqueIndex:ux_monitoragg_bucket,priority:1" json:"monitorId"`
+	AgentID       string  `gorm:"index:idx_monitoragg_monitor_agent_bucket,priority:2;uniqueIndex:ux_monitoragg_bucket,priority:2" json:"agentId"`
+	BucketSeconds int     `gorm:"index:idx_monitoragg_monitor_agent_bucket,priority:3;uniqueIndex:ux_monitoragg_bucket,priority:3" json:"bucketSeconds"`
+	BucketStart   int64   `gorm:"index:idx_monitoragg_monitor_agent_bucket,priority:4;uniqueIndex:ux_monitoragg_bucket,priority:4" json:"bucketStart"` // 毫秒
+	AvgResponse   float64 `json:"avgResponse"`                                                                                                         // 平均响应时间(ms)
+	MaxResponse   int64   `json:"maxResponse"`                                                                                                         // 最大响应时间(ms)
+	MinResponse   int64   `json:"minResponse"`                                                                                                         // 最小响应时间(ms)
+	SuccessCount  int64   `json:"successCount"`                                                                                                        // 成功次数
+	TotalCount    int64   `json:"totalCount"`                                                                                                          // 总次数
+	SuccessRate   float64 `json:"successRate"`                                                                                                         // 成功率(百分比)
+	LastStatus    string  `json:"lastStatus"`                                                                                                          // 最后状态
+	LastError     string  `json:"lastError"`                                                                                                           // 最后错误信息
+}
+
+func (AggregatedMonitorMetricModel) TableName() string {
+	return "monitor_metrics_aggs"
+}

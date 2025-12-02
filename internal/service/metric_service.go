@@ -676,6 +676,7 @@ func (s *MetricService) runAggregation(ctx context.Context) {
 		s.aggregateMetric(ctx, "disk_io", bucket, retention, s.metricRepo.AggregateDiskIOToAgg)
 		s.aggregateMetric(ctx, "gpu", bucket, retention, s.metricRepo.AggregateGPUToAgg)
 		s.aggregateMetric(ctx, "temperature", bucket, retention, s.metricRepo.AggregateTemperatureToAgg)
+		s.aggregateMetric(ctx, "monitor", bucket, retention, s.metricRepo.AggregateMonitorMetricsToAgg)
 	}
 }
 

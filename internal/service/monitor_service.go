@@ -11,6 +11,7 @@ import (
 	"github.com/dushixiang/pika/internal/protocol"
 	"github.com/dushixiang/pika/internal/repo"
 	ws "github.com/dushixiang/pika/internal/websocket"
+	"github.com/go-orz/cache"
 	"github.com/go-orz/orz"
 	"github.com/go-orz/toolkit"
 	"github.com/google/uuid"
@@ -27,6 +28,11 @@ type MonitorService struct {
 	metricRepo       *repo.MetricRepo
 	monitorStatsRepo *repo.MonitorStatsRepo
 	wsManager        *ws.Manager
+
+	// 监控概览缓存：缓存监控任务列表（使用不同的 key 区分 public 和 private）
+	overviewCache cache.Cache[string, []PublicMonitorOverview]
+	// 监控统计缓存：缓存单个监控任务的统计数据
+	statsCache cache.Cache[string, []models.MonitorStats]
 }
 
 func NewMonitorService(logger *zap.Logger, db *gorm.DB, wsManager *ws.Manager) *MonitorService {
@@ -37,8 +43,11 @@ func NewMonitorService(logger *zap.Logger, db *gorm.DB, wsManager *ws.Manager) *
 		agentRepo:        repo.NewAgentRepo(db),
 		metricRepo:       repo.NewMetricRepo(db),
 		monitorStatsRepo: repo.NewMonitorStatsRepo(db),
+		wsManager:        wsManager,
 
-		wsManager: wsManager,
+		// 缓存 5 分钟，避免频繁查询
+		overviewCache: cache.New[string, []PublicMonitorOverview](5 * time.Minute),
+		statsCache:    cache.New[string, []models.MonitorStats](5 * time.Minute),
 	}
 }
 
@@ -178,6 +187,18 @@ func (s *MonitorService) DeleteMonitor(ctx context.Context, id string) error {
 
 // ListByAuth 返回公开展示所需的监控配置和汇总统计
 func (s *MonitorService) ListByAuth(ctx context.Context, isAuthenticated bool) ([]PublicMonitorOverview, error) {
+	// 构建缓存键：根据认证状态使用不同的 key
+	cacheKey := "overview:public"
+	if isAuthenticated {
+		cacheKey = "overview:private"
+	}
+
+	// 尝试从缓存获取
+	if cachedResult, ok := s.overviewCache.Get(cacheKey); ok {
+		return cachedResult, nil
+	}
+
+	// 缓存未命中，查询数据库
 	// 获取符合权限的监控任务列表
 	monitors, err := s.FindByAuth(ctx, isAuthenticated)
 	if err != nil {
@@ -185,7 +206,10 @@ func (s *MonitorService) ListByAuth(ctx context.Context, isAuthenticated bool) (
 	}
 
 	if len(monitors) == 0 {
-		return []PublicMonitorOverview{}, nil
+		emptyResult := []PublicMonitorOverview{}
+		// 缓存空结果
+		s.overviewCache.Set(cacheKey, emptyResult, 5*time.Minute)
+		return emptyResult, nil
 	}
 
 	// 提取监控任务ID列表
@@ -194,7 +218,7 @@ func (s *MonitorService) ListByAuth(ctx context.Context, isAuthenticated bool) (
 		monitorIds = append(monitorIds, monitor.ID)
 	}
 
-	// 批量获取统计数据
+	// 批量获取统计数据（已经由后台任务预计算好）
 	statsList, err := s.monitorStatsRepo.FindByMonitorIdIn(ctx, monitorIds)
 	if err != nil {
 		return nil, err
@@ -206,53 +230,21 @@ func (s *MonitorService) ListByAuth(ctx context.Context, isAuthenticated bool) (
 		statsMap[stats.MonitorId] = append(statsMap[stats.MonitorId], stats)
 	}
 
-	// 获取所有探针列表，用于过滤有效的统计数据
-	agents, err := s.agentRepo.FindAll(ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	// 构建监控概览列表
 	items := make([]PublicMonitorOverview, 0, len(monitors))
 	for _, monitor := range monitors {
-		// 计算当前监控任务关联的目标探针
-		targetAgents := s.resolveTargetAgents(monitor, agents)
-
-		// 过滤出目标探针的统计数据
-		filteredStats := s.filterStatsByAgents(statsMap[monitor.ID], targetAgents)
-
-		// 聚合统计数据
-		summary := aggregateMonitorStats(filteredStats)
+		// 直接聚合预计算的统计数据
+		summary := aggregateMonitorStats(statsMap[monitor.ID])
 
 		// 构建监控概览对象
 		item := s.buildMonitorOverview(monitor, summary)
 		items = append(items, item)
 	}
 
+	// 缓存结果
+	s.overviewCache.Set(cacheKey, items, 5*time.Minute)
+
 	return items, nil
-}
-
-// filterStatsByAgents 过滤出指定探针的统计数据
-func (s *MonitorService) filterStatsByAgents(stats []models.MonitorStats, targetAgents []models.Agent) []models.MonitorStats {
-	if len(stats) == 0 || len(targetAgents) == 0 {
-		return []models.MonitorStats{}
-	}
-
-	// 构建目标探针ID映射
-	targetAgentsMap := make(map[string]bool, len(targetAgents))
-	for _, agent := range targetAgents {
-		targetAgentsMap[agent.ID] = true
-	}
-
-	// 过滤统计数据
-	filteredStats := make([]models.MonitorStats, 0, len(stats))
-	for _, stat := range stats {
-		if targetAgentsMap[stat.AgentID] {
-			filteredStats = append(filteredStats, stat)
-		}
-	}
-
-	return filteredStats
 }
 
 // buildMonitorOverview 构建监控概览对象
@@ -652,8 +644,40 @@ func (s *MonitorService) calculateStatsForAgentMonitor(ctx context.Context, agen
 	return stats, nil
 }
 
-// GetMonitorStatsByID 获取监控任务的统计数据（所有探针）
-func (s *MonitorService) GetMonitorStatsByID(ctx context.Context, monitorID string) ([]models.MonitorStats, error) {
+// GetMonitorStatsByID 获取监控任务的统计数据（聚合后的单个监控详情）
+func (s *MonitorService) GetMonitorStatsByID(ctx context.Context, monitorID string) (*PublicMonitorOverview, error) {
+	// 查询监控任务
+	monitor, err := s.MonitorRepo.FindById(ctx, monitorID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 获取统计数据
+	statsList, err := s.monitorStatsRepo.FindByMonitorId(ctx, monitor.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 聚合统计数据
+	summary := aggregateMonitorStats(statsList)
+
+	// 构建监控概览对象
+	overview := s.buildMonitorOverview(monitor, summary)
+
+	return &overview, nil
+}
+
+// GetMonitorAgentStats 获取监控任务各探针的统计数据（详细列表）
+func (s *MonitorService) GetMonitorAgentStats(ctx context.Context, monitorID string) ([]models.MonitorStats, error) {
+	// 构建缓存键
+	cacheKey := fmt.Sprintf("agents:%s", monitorID)
+
+	// 尝试从缓存获取
+	if cachedResult, ok := s.statsCache.Get(cacheKey); ok {
+		return cachedResult, nil
+	}
+
+	// 缓存未命中，查询数据库
 	monitor, err := s.MonitorRepo.FindById(ctx, monitorID)
 	if err != nil {
 		return nil, err
@@ -695,43 +719,69 @@ func (s *MonitorService) GetMonitorStatsByID(ctx context.Context, monitorID stri
 		filteredStatsList = append(filteredStatsList, stats)
 	}
 
+	// 缓存结果
+	s.statsCache.Set(cacheKey, filteredStatsList, 5*time.Minute)
+
 	return filteredStatsList, nil
 }
 
 // GetMonitorHistory 获取监控任务的历史响应时间数据
+// 根据前端时间范围选择，直接使用聚合表数据
+// 支持时间范围：15m, 30m, 1h, 3h, 6h, 12h, 1d, 3d, 7d
 func (s *MonitorService) GetMonitorHistory(ctx context.Context, monitorID, timeRange string) ([]repo.AggregatedMonitorMetric, error) {
 	monitor, err := s.MonitorRepo.FindById(ctx, monitorID)
 	if err != nil {
 		return nil, err
 	}
 
-	// 解析时间范围
+	// 根据前端时间范围，选择最优的聚合粒度
 	var duration time.Duration
-	var interval int // 聚合间隔（秒）
+	var bucketSeconds int // 使用的聚合 bucket（秒）
 
 	switch timeRange {
-	case "5m":
-		duration = 5 * time.Minute
-		interval = 15 // 15秒聚合一次
 	case "15m":
 		duration = 15 * time.Minute
-		interval = 30 // 30秒聚合一次
+		bucketSeconds = 60 // 1分钟聚合，约15个点
 	case "30m":
 		duration = 30 * time.Minute
-		interval = 60 // 1分钟聚合一次
+		bucketSeconds = 60 // 1分钟聚合，约30个点
 	case "1h":
 		duration = 1 * time.Hour
-		interval = 120 // 2分钟聚合一次
+		bucketSeconds = 300 // 5分钟聚合，约12个点
+	case "3h":
+		duration = 3 * time.Hour
+		bucketSeconds = 300 // 5分钟聚合，约36个点
+	case "6h":
+		duration = 6 * time.Hour
+		bucketSeconds = 900 // 15分钟聚合，约24个点
+	case "12h":
+		duration = 12 * time.Hour
+		bucketSeconds = 900 // 15分钟聚合，约48个点
+	case "1d", "24h":
+		duration = 24 * time.Hour
+		bucketSeconds = 1800 // 30分钟聚合，约48个点
+	case "3d":
+		duration = 3 * 24 * time.Hour
+		bucketSeconds = 3600 // 1小时聚合，约72个点
+	case "7d":
+		duration = 7 * 24 * time.Hour
+		bucketSeconds = 7200 // 2小时聚合，约84个点
 	default:
-		duration = 5 * time.Minute
-		interval = 15
+		// 默认 15 分钟
+		duration = 15 * time.Minute
+		bucketSeconds = 60
 	}
 
 	now := time.Now()
 	end := now.UnixMilli()
 	start := now.Add(-duration).UnixMilli()
 
-	return s.metricRepo.GetAggregatedMonitorMetrics(ctx, monitor.ID, start, end, interval)
+	// 对齐时间范围到 bucket 边界
+	bucketMs := int64(bucketSeconds * 1000)
+	start, end = alignTimeRangeToBucket(start, end, bucketMs)
+
+	// 直接使用聚合表查询
+	return s.metricRepo.GetMonitorMetricsAgg(ctx, monitor.ID, start, end, bucketSeconds)
 }
 
 // GetMonitorByAuth 根据认证状态获取监控任务（已登录返回全部，未登录返回公开可见）

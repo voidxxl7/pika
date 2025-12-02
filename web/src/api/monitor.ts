@@ -34,9 +34,14 @@ export const getPublicMonitors = () => {
     return get<PublicMonitor[]>('/monitors');
 };
 
-// 公开接口 - 获取指定监控的统计数据
+// 公开接口 - 获取指定监控的统计数据（聚合后的单个监控详情）
 export const getMonitorStatsById = (id: string) => {
-    return get<MonitorStats[]>(`/monitors/${encodeURIComponent(id)}/stats`);
+    return get<PublicMonitor>(`/monitors/${encodeURIComponent(id)}/stats`);
+};
+
+// 公开接口 - 获取指定监控各探针的统计数据（详细列表）
+export const getMonitorAgentStats = (id: string) => {
+    return get<MonitorStats[]>(`/monitors/${encodeURIComponent(id)}/agents`);
 };
 
 // 聚合的监控历史数据

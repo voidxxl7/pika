@@ -15,8 +15,8 @@ import {
 } from 'lucide-react';
 import type {TooltipProps} from 'recharts';
 import {Area, AreaChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis,} from 'recharts';
-import {type AggregatedMonitorMetric, getMonitorHistory, getMonitorStatsById} from '@/api/monitor.ts';
-import type {MonitorStats} from '@/types';
+import {type AggregatedMonitorMetric, getMonitorHistory, getMonitorStatsById, getMonitorAgentStats} from '@/api/monitor.ts';
+import type {MonitorStats, PublicMonitor} from '@/types';
 
 const formatTime = (ms: number): string => {
     if (!ms || ms <= 0) return '0 ms';
@@ -74,12 +74,12 @@ const timeRangeOptions = [
     {label: '15分钟', value: '15m'},
     {label: '30分钟', value: '30m'},
     {label: '1小时', value: '1h'},
-    // {label: '3小时', value: '3h'},
-    // {label: '6小时', value: '6h'},
-    // {label: '12小时', value: '12h'},
-    // {label: '1天', value: '1d'},
-    // {label: '3天', value: '3d'},
-    // {label: '7天', value: '7d'},
+    {label: '3小时', value: '3h'},
+    {label: '6小时', value: '6h'},
+    {label: '12小时', value: '12h'},
+    {label: '1天', value: '1d'},
+    {label: '3天', value: '3d'},
+    {label: '7天', value: '7d'},
 ]
 
 const ChartPlaceholder = ({
@@ -318,11 +318,24 @@ const MonitorDetail = () => {
     const [selectedAgent, setSelectedAgent] = useState<string>('all');
     const [timeRange, setTimeRange] = useState<string>('15m');
 
-    const {data: monitorStats = [], isLoading} = useQuery<MonitorStats[]>({
-        queryKey: ['monitorStats', id],
+    // 获取监控详情（聚合数据）
+    const {data: monitorDetail, isLoading} = useQuery<PublicMonitor>({
+        queryKey: ['monitorDetail', id],
+        queryFn: async () => {
+            if (!id) throw new Error('Monitor ID is required');
+            const response = await getMonitorStatsById(id);
+            return response.data;
+        },
+        refetchInterval: 30000,
+        enabled: !!id,
+    });
+
+    // 获取各探针的统计数据
+    const {data: monitorStats = []} = useQuery<MonitorStats[]>({
+        queryKey: ['monitorAgentStats', id],
         queryFn: async () => {
             if (!id) return [];
-            const response = await getMonitorStatsById(id);
+            const response = await getMonitorAgentStats(id);
             return response.data || [];
         },
         refetchInterval: 30000,
@@ -392,23 +405,20 @@ const MonitorDetail = () => {
         return <LoadingSpinner/>;
     }
 
-    if (monitorStats.length === 0) {
+    if (!monitorDetail) {
         return <EmptyState/>;
     }
 
-    const firstStat = monitorStats[0];
-    const monitorTitle = firstStat?.name ?? '监控详情';
-    const avgUptime24h = monitorStats.reduce((sum, s) => sum + s.uptime24h, 0) / monitorStats.length;
-    const avgUptime30d = monitorStats.reduce((sum, s) => sum + s.uptime30d, 0) / monitorStats.length;
-    const hasCert = firstStat.certExpiryDate > 0;
-    const certExpired = hasCert && firstStat.certExpiryDays < 0;
-    const certExpiringSoon = hasCert && firstStat.certExpiryDays >= 0 && firstStat.certExpiryDays < 30;
+    const monitorTitle = monitorDetail.name ?? '监控详情';
+    const hasCert = monitorDetail.certExpiryDate > 0;
+    const certExpired = hasCert && monitorDetail.certExpiryDays < 0;
+    const certExpiringSoon = hasCert && monitorDetail.certExpiryDays >= 0 && monitorDetail.certExpiryDays < 30;
 
     const heroStats = [
-        {label: '监控类型', value: firstStat.type.toUpperCase()},
-        {label: '探针数量', value: `${monitorStats.length} 个`},
-        {label: '24h在线率', value: `${formatPercentValue(avgUptime24h)}%`},
-        {label: '30d在线率', value: `${formatPercentValue(avgUptime30d)}%`},
+        {label: '监控类型', value: monitorDetail.type.toUpperCase()},
+        {label: '探针数量', value: `${monitorDetail.agentCount} 个`},
+        {label: '24h在线率', value: `${formatPercentValue(monitorDetail.uptime24h)}%`},
+        {label: '30d在线率', value: `${formatPercentValue(monitorDetail.uptime30d)}%`},
     ];
 
     return (
@@ -433,7 +443,7 @@ const MonitorDetail = () => {
                                 <div className="flex items-start gap-4">
                                     <div
                                         className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 text-white">
-                                        {firstStat.type === 'tcp' ? (
+                                        {monitorDetail.type === 'tcp' ? (
                                             <ServerIcon className="h-7 w-7"/>
                                         ) : (
                                             <Globe className="h-7 w-7"/>
@@ -444,7 +454,7 @@ const MonitorDetail = () => {
                                             <h1 className="text-3xl font-semibold">{monitorTitle}</h1>
                                         </div>
                                         <p className="mt-2 text-sm text-white/80">
-                                            {firstStat.target}
+                                            {monitorDetail.target}
                                         </p>
                                         <p className="text-xs text-white/60">公共视图 · 实时监控概览</p>
                                     </div>
@@ -464,11 +474,11 @@ const MonitorDetail = () => {
                             </div>
                         </div>
                         <div className="flex flex-wrap items-center gap-3 text-xs text-white/70">
-                            <span>监控 ID：{firstStat.id || id}</span>
+                            <span>监控 ID：{monitorDetail.id || id}</span>
                             <span className="hidden h-1 w-1 rounded-full bg-white/30 sm:inline-block"/>
-                            <span>探针数量：{monitorStats.length} 个</span>
+                            <span>探针数量：{monitorDetail.agentCount} 个</span>
                             <span className="hidden h-1 w-1 rounded-full bg-white/30 sm:inline-block"/>
-                            <span>目标：{firstStat.target}</span>
+                            <span>目标：{monitorDetail.target}</span>
                         </div>
                     </div>
                 </section>
@@ -480,26 +490,26 @@ const MonitorDetail = () => {
                             <StatCard
                                 icon={<Clock className="h-6 w-6"/>}
                                 label="当前响应"
-                                value={formatTime(firstStat.currentResponse)}
+                                value={formatTime(monitorDetail.currentResponse)}
                                 color="blue"
                             />
                             <StatCard
                                 icon={<Clock className="h-6 w-6"/>}
                                 label="24h 平均响应"
-                                value={formatTime(firstStat.avgResponse24h)}
+                                value={formatTime(monitorDetail.avgResponse24h)}
                                 color="blue"
                             />
                             <StatCard
                                 icon={<CheckCircle2 className="h-6 w-6"/>}
                                 label="24h 在线率"
-                                value={`${formatPercentValue(avgUptime24h)}%`}
-                                color={avgUptime24h >= 99 ? 'emerald' : avgUptime24h >= 95 ? 'amber' : 'rose'}
+                                value={`${formatPercentValue(monitorDetail.uptime24h)}%`}
+                                color={monitorDetail.uptime24h >= 99 ? 'emerald' : monitorDetail.uptime24h >= 95 ? 'amber' : 'rose'}
                             />
                             <StatCard
                                 icon={<CheckCircle2 className="h-6 w-6"/>}
                                 label="30d 在线率"
-                                value={`${formatPercentValue(avgUptime30d)}%`}
-                                color={avgUptime30d >= 99 ? 'emerald' : avgUptime30d >= 95 ? 'amber' : 'rose'}
+                                value={`${formatPercentValue(monitorDetail.uptime30d)}%`}
+                                color={monitorDetail.uptime30d >= 99 ? 'emerald' : monitorDetail.uptime30d >= 95 ? 'amber' : 'rose'}
                             />
                         </div>
 
@@ -537,12 +547,12 @@ const MonitorDetail = () => {
                                                     ? 'text-amber-700 dark:text-amber-200'
                                                     : 'text-slate-600 dark:text-slate-400'
                                         }`}>
-                                            证书到期时间: {formatDate(firstStat.certExpiryDate)}
+                                            证书到期时间: {formatDate(monitorDetail.certExpiryDate)}
                                             {certExpired ? (
                                                 <span
-                                                    className="ml-1">(已过期 {Math.abs(firstStat.certExpiryDays)} 天)</span>
+                                                    className="ml-1">(已过期 {Math.abs(monitorDetail.certExpiryDays)} 天)</span>
                                             ) : (
-                                                <span className="ml-1">(剩余 {firstStat.certExpiryDays} 天)</span>
+                                                <span className="ml-1">(剩余 {monitorDetail.certExpiryDays} 天)</span>
                                             )}
                                         </p>
                                         {certExpired && (

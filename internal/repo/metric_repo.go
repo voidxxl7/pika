@@ -923,3 +923,70 @@ func (r *MetricRepo) GetAggregationProgress(ctx context.Context, metricType stri
 	}
 	return &progress, nil
 }
+
+// ----------- 监控指标聚合表操作 -----------
+
+// AggregateMonitorMetricsToAgg 将原始监控数据聚合到聚合表
+func (r *MetricRepo) AggregateMonitorMetricsToAgg(ctx context.Context, bucketSeconds int, start, end int64) error {
+	bucketMs := int64(bucketSeconds * 1000)
+	return r.db.WithContext(ctx).Exec(`
+		INSERT INTO monitor_metrics_aggs (
+			monitor_id, agent_id, bucket_seconds, bucket_start,
+			avg_response, max_response, min_response,
+			success_count, total_count, success_rate,
+			last_status, last_error
+		)
+		WITH ranked_metrics AS (
+			SELECT
+				monitor_id,
+				agent_id,
+				(timestamp / ?) * ? as bucket_start,
+				response_time,
+				status,
+				error,
+				timestamp,
+				ROW_NUMBER() OVER (PARTITION BY monitor_id, agent_id, (timestamp / ?) * ? ORDER BY timestamp DESC) as rn
+			FROM monitor_metrics
+			WHERE timestamp >= ? AND timestamp < ?
+		)
+		SELECT
+			monitor_id,
+			agent_id,
+			? as bucket_seconds,
+			bucket_start,
+			AVG(response_time) as avg_response,
+			MAX(response_time) as max_response,
+			MIN(response_time) as min_response,
+			SUM(CASE WHEN status = 'up' THEN 1 ELSE 0 END) as success_count,
+			COUNT(*) as total_count,
+			CAST(SUM(CASE WHEN status = 'up' THEN 1 ELSE 0 END) AS REAL) / CAST(COUNT(*) AS REAL) * 100 as success_rate,
+			MAX(CASE WHEN rn = 1 THEN status END) as last_status,
+			MAX(CASE WHEN rn = 1 THEN error END) as last_error
+		FROM ranked_metrics
+		GROUP BY monitor_id, agent_id, bucket_start
+		ON CONFLICT (monitor_id, agent_id, bucket_seconds, bucket_start) DO UPDATE SET
+			avg_response = EXCLUDED.avg_response,
+			max_response = EXCLUDED.max_response,
+			min_response = EXCLUDED.min_response,
+			success_count = EXCLUDED.success_count,
+			total_count = EXCLUDED.total_count,
+			success_rate = EXCLUDED.success_rate,
+			last_status = EXCLUDED.last_status,
+			last_error = EXCLUDED.last_error
+	`, bucketMs, bucketMs, bucketMs, bucketMs, start, end, bucketSeconds).Error
+}
+
+// GetMonitorMetricsAgg 从聚合表获取监控指标（按探针和时间间隔聚合）
+func (r *MetricRepo) GetMonitorMetricsAgg(ctx context.Context, monitorID string, start, end int64, bucketSeconds int) ([]AggregatedMonitorMetric, error) {
+	var metrics []AggregatedMonitorMetric
+	err := r.db.WithContext(ctx).
+		Table("monitor_metrics_aggs").
+		Select(`bucket_start as timestamp, agent_id,
+			avg_response, max_response, min_response,
+			success_count, total_count, success_rate,
+			last_status, last_error as last_error_msg`).
+		Where("monitor_id = ? AND bucket_seconds = ? AND bucket_start >= ? AND bucket_start <= ?", monitorID, bucketSeconds, start, end).
+		Order("bucket_start, agent_id").
+		Scan(&metrics).Error
+	return metrics, err
+}
