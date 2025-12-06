@@ -521,8 +521,6 @@ func (h *AgentHandler) GetAgents(c echo.Context) error {
 		item := map[string]interface{}{
 			"id":         agent.ID,
 			"name":       agent.Name,
-			"hostname":   agent.Hostname,
-			"ip":         agent.IP,
 			"os":         agent.OS,
 			"arch":       agent.Arch,
 			"version":    agent.Version,
