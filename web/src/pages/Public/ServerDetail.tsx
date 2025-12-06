@@ -512,6 +512,7 @@ const ServerDetail = () => {
 
     const [timeRange, setTimeRange] = useState<string>('15m');
     const [selectedInterface, setSelectedInterface] = useState<string>('all');
+    const [selectedTempType, setSelectedTempType] = useState<string>('all');
     const {agent, latestMetrics, loading} = useAgentOverview(id);
     const metricsData = useAggregatedMetrics(id, timeRange, selectedInterface);
 
@@ -670,9 +671,9 @@ const ServerDetail = () => {
         }));
     }, [metricsData.gpu]);
 
-    // Temperature 图表数据（所有传感器的平均温度）
+    // Temperature 图表数据（按类型分组显示各类型的温度）
     const temperatureChartData = useMemo(() => {
-        const aggregated: Record<string, { time: string; temperature: number; count: number; timestamp: number }> = {};
+        const aggregated: Record<string, any> = {};
 
         metricsData.temperature.forEach((item) => {
             const time = new Date(item.timestamp).toLocaleTimeString('zh-CN', {
@@ -681,19 +682,57 @@ const ServerDetail = () => {
             });
 
             if (!aggregated[time]) {
-                aggregated[time] = {time, temperature: 0, count: 0, timestamp: item.timestamp};
+                aggregated[time] = {time, timestamp: item.timestamp};
             }
 
-            aggregated[time].temperature += item.maxTemperature;
-            aggregated[time].count += 1;
+            // 使用 sensorLabel 作为数据键（类型名称，如 CPU、GPU 等）
+            const label = item.sensorLabel || 'Unknown';
+            // 对于同一时间点的同一类型，取最大温度
+            if (!aggregated[time][label] || item.maxTemperature > aggregated[time][label]) {
+                aggregated[time][label] = Number(item.maxTemperature.toFixed(2));
+            }
         });
 
-        return Object.values(aggregated).map((item) => ({
-            time: item.time,
-            temperature: Number((item.temperature / item.count).toFixed(2)),
-            timestamp: item.timestamp,
-        }));
+        return Object.values(aggregated);
     }, [metricsData.temperature]);
+
+    // 提取所有唯一的温度类型（用于图表 Line 渲染和下拉选择器）
+    const temperatureTypes = useMemo(() => {
+        const types = new Set<string>();
+        metricsData.temperature.forEach((item) => {
+            const label = item.sensorLabel || 'Unknown';
+            types.add(label);
+        });
+        return Array.from(types).sort();
+    }, [metricsData.temperature]);
+
+    // 根据选中的类型过滤温度数据
+    const filteredTemperatureTypes = useMemo(() => {
+        if (selectedTempType === 'all') {
+            return temperatureTypes;
+        }
+        return temperatureTypes.filter(type => type === selectedTempType);
+    }, [temperatureTypes, selectedTempType]);
+
+    // 当温度类型列表变化时，如果当前选中的类型不在列表中，重置为 'all'
+    useEffect(() => {
+        if (selectedTempType !== 'all' && temperatureTypes.length > 0) {
+            if (!temperatureTypes.includes(selectedTempType)) {
+                setSelectedTempType('all');
+            }
+        }
+    }, [temperatureTypes, selectedTempType]);
+
+    // 温度类型颜色映射
+    const temperatureColors: Record<string, string> = {
+        'CPU': '#f97316',      // 橙色
+        'GPU': '#8b5cf6',      // 紫色
+        'DISK': '#06b6d4',     // 青色
+        'BATTERY': '#10b981',  // 绿色
+        'CHIPSET': '#f59e0b',  // 琥珀色
+        'SYSTEM': '#6366f1',   // 靛蓝色
+        'PSU': '#ec4899',      // 粉色
+    };
 
     const snapshotCards: SnapshotCardData[] = useMemo(() => {
         if (!latestMetrics) {
@@ -1401,23 +1440,33 @@ const ServerDetail = () => {
                                 </section>
                             )}
 
-                            {temperatureChartData.length > 0 && (
+                            {temperatureChartData.length > 0 && temperatureTypes.length > 0 && (
                                 <section>
-                                    <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
-                                        <span
-                                            className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400">
-                                            <Thermometer className="h-4 w-4"/>
-                                        </span>
-                                        系统温度
-                                    </h3>
+                                    <div className="mb-3 flex items-center justify-between">
+                                        <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
+                                            <span
+                                                className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400">
+                                                <Thermometer className="h-4 w-4"/>
+                                            </span>
+                                            系统温度
+                                        </h3>
+                                        {temperatureTypes.length > 1 && (
+                                            <select
+                                                value={selectedTempType}
+                                                onChange={(e) => setSelectedTempType(e.target.value)}
+                                                className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm text-slate-700 dark:text-slate-200 hover:border-orange-300 dark:hover:border-orange-500 focus:border-orange-500 dark:focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200 dark:focus:ring-orange-500/40"
+                                            >
+                                                <option value="all">所有类型</option>
+                                                {temperatureTypes.map((type) => (
+                                                    <option key={type} value={type}>
+                                                        {type}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        )}
+                                    </div>
                                     <ResponsiveContainer width="100%" height={220}>
-                                        <AreaChart data={temperatureChartData}>
-                                            <defs>
-                                                <linearGradient id="tempAreaGradient" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%" stopColor="#f97316" stopOpacity={0.4}/>
-                                                    <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
-                                                </linearGradient>
-                                            </defs>
+                                        <LineChart data={temperatureChartData}>
                                             <CartesianGrid stroke="currentColor" strokeDasharray="4 4"
                                                            className="stroke-slate-200 dark:stroke-slate-600"/>
                                             <XAxis
@@ -1433,16 +1482,26 @@ const ServerDetail = () => {
                                                 tickFormatter={(value) => `${value}°C`}
                                             />
                                             <Tooltip content={<CustomTooltip unit="°C"/>}/>
-                                            <Area
-                                                type="monotone"
-                                                dataKey="temperature"
-                                                name="平均温度"
-                                                stroke="#f97316"
-                                                strokeWidth={2}
-                                                fill="url(#tempAreaGradient)"
-                                                activeDot={{r: 3}}
-                                            />
-                                        </AreaChart>
+                                            <Legend/>
+                                            {/* 为选中的温度类型渲染线条 */}
+                                            {filteredTemperatureTypes.map((type, index) => {
+                                                // 使用预定义颜色，如果没有则使用默认颜色
+                                                const color = temperatureColors[type] || `hsl(${(index * 60) % 360}, 70%, 50%)`;
+                                                return (
+                                                    <Line
+                                                        key={type}
+                                                        type="monotone"
+                                                        dataKey={type}
+                                                        name={type}
+                                                        stroke={color}
+                                                        strokeWidth={2}
+                                                        dot={false}
+                                                        activeDot={{r: 3}}
+                                                        connectNulls
+                                                    />
+                                                );
+                                            })}
+                                        </LineChart>
                                     </ResponsiveContainer>
                                 </section>
                             )}
@@ -1507,7 +1566,7 @@ const ServerDetail = () => {
                     {latestMetrics?.temperature && latestMetrics.temperature.length > 0 && (
                         <Card title="温度监控" description="系统各部件温度传感器数据">
                             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-                                {latestMetrics.temperature.map((temp) => (
+                                {latestMetrics.temperature.sort((a, b) => a.sensorKey.localeCompare(b.sensorKey)).map((temp) => (
                                     <div
                                         key={temp.sensorKey}
                                         className="rounded-xl border border-slate-100 dark:border-slate-800 bg-gradient-to-br from-slate-50 to-white dark:from-slate-700 dark:to-slate-800 p-4"

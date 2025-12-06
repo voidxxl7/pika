@@ -194,8 +194,7 @@ type GPUData struct {
 type TemperatureData struct {
 	SensorKey   string  `json:"sensorKey"`
 	Temperature float64 `json:"temperature"`
-	High        float64 `json:"high,omitempty"`
-	Critical    float64 `json:"critical,omitempty"`
+	Type        string  `json:"type"`
 }
 
 // CommandRequest 指令请求

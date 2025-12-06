@@ -358,10 +358,16 @@ func (s *MetricService) HandleMetricData(ctx context.Context, agentID string, me
 		// 保存每个温度传感器的数据
 		var tempMetrics []models.TemperatureMetric
 		for _, tempData := range tempDataList {
+			// 使用 Type 作为 SensorLabel，更易读
+			sensorLabel := tempData.Type
+			if sensorLabel == "" {
+				sensorLabel = tempData.SensorKey // 降级使用 SensorKey
+			}
+
 			metric := models.TemperatureMetric{
 				AgentID:     agentID,
 				SensorKey:   tempData.SensorKey,
-				SensorLabel: tempData.SensorKey, // protocol 中没有 SensorLabel，使用 SensorKey
+				SensorLabel: sensorLabel,
 				Temperature: tempData.Temperature,
 				Timestamp:   now,
 			}
