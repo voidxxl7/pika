@@ -503,53 +503,57 @@ const ServerList = () => {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 space-y-4">
             {/* 标签过滤器 */}
             {tagsData && tagsData.length > 0 && (
-                <div className="flex items-center gap-3 overflow-x-auto pb-2">
-                    <button
-                        onClick={() => setSelectedTag('')}
-                        className={cn(
-                            "cursor-pointer inline-flex items-center gap-2 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200",
-                            selectedTag === ''
-                                ? 'bg-blue-500 dark:bg-blue-500 text-white shadow-md shadow-blue-500/30 dark:shadow-blue-500/30'
-                                : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-                        )}
-                    >
-                        <span>全部</span>
-                        <span className={cn(
-                            "inline-flex items-center justify-center rounded-md px-2 py-0.5 text-xs font-semibold",
-                            selectedTag === ''
-                                ? 'bg-blue-400 dark:bg-blue-400 text-white'
-                                : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
-                        )}>
-                            {agents.length}
-                        </span>
-                    </button>
-                    {tagsData.map((tag) => {
-                        const count = agents.filter(agent => agent.tags?.includes(tag)).length;
-                        if (count === 0) return null;
+                <div className="relative">
+                    <div className="tag-filter-scrollbar flex items-center gap-3 overflow-x-auto pb-2">
+                        <button
+                            onClick={() => setSelectedTag('')}
+                            className={cn(
+                                "cursor-pointer inline-flex items-center gap-2 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200",
+                                selectedTag === ''
+                                    ? 'bg-blue-500 dark:bg-blue-500 text-white shadow-md shadow-blue-500/30 dark:shadow-blue-500/30'
+                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                            )}
+                        >
+                            <span>全部</span>
+                            <span className={cn(
+                                "inline-flex items-center justify-center rounded-md px-2 py-0.5 text-xs font-semibold",
+                                selectedTag === ''
+                                    ? 'bg-blue-400 dark:bg-blue-400 text-white'
+                                    : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+                            )}>
+                                {agents.length}
+                            </span>
+                        </button>
+                        {tagsData.map((tag) => {
+                            const count = agents.filter(agent => agent.tags?.includes(tag)).length;
+                            if (count === 0) return null;
 
-                        return (
-                            <button
-                                key={tag}
-                                onClick={() => setSelectedTag(tag)}
-                                className={cn(
-                                    "cursor-pointer inline-flex items-center gap-2 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200",
-                                    selectedTag === tag
-                                        ? 'bg-blue-500 dark:bg-blue-500 text-white shadow-md shadow-blue-500/30 dark:shadow-blue-500/30'
-                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-                                )}
-                            >
-                                <span>{tag}</span>
-                                <span className={cn(
-                                    "inline-flex items-center justify-center rounded-md px-2 py-0.5 text-xs font-semibold",
-                                    selectedTag === tag
-                                        ? 'bg-blue-400 dark:bg-blue-400 text-white'
-                                        : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
-                                )}>
-                                    {count}
-                                </span>
-                            </button>
-                        );
-                    })}
+                            return (
+                                <button
+                                    key={tag}
+                                    onClick={() => setSelectedTag(tag)}
+                                    className={cn(
+                                        "cursor-pointer inline-flex items-center gap-2 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200",
+                                        selectedTag === tag
+                                            ? 'bg-blue-500 dark:bg-blue-500 text-white shadow-md shadow-blue-500/30 dark:shadow-blue-500/30'
+                                            : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                    )}
+                                >
+                                    <span>{tag}</span>
+                                    <span className={cn(
+                                        "inline-flex items-center justify-center rounded-md px-2 py-0.5 text-xs font-semibold",
+                                        selectedTag === tag
+                                            ? 'bg-blue-400 dark:bg-blue-400 text-white'
+                                            : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+                                    )}>
+                                        {count}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                    {/* 右侧渐变提示 */}
+                    <div className="pointer-events-none absolute right-0 top-0 h-full w-12 bg-gradient-to-l from-white dark:from-slate-950" />
                 </div>
             )}
 

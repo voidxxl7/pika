@@ -35,3 +35,46 @@
 .dark ::-webkit-scrollbar-thumb:hover {
     background: rgb(100, 116, 139);
 }
+
+/* 标签过滤器滚动条样式 */
+.tag-filter-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(203, 213, 225) transparent;
+    scrollbar-gutter: stable;
+}
+
+.tag-filter-scrollbar::-webkit-scrollbar {
+    height: 6px;
+}
+
+.tag-filter-scrollbar::-webkit-scrollbar-track {
+    background: rgb(241, 245, 249);
+    border-radius: 9999px;
+}
+
+.tag-filter-scrollbar::-webkit-scrollbar-thumb {
+    background: rgb(203, 213, 225);
+    border-radius: 9999px;
+    transition: background-color 0.2s;
+}
+
+.tag-filter-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgb(148, 163, 184);
+}
+
+/* 暗色模式标签过滤器滚动条 */
+.dark .tag-filter-scrollbar {
+    scrollbar-color: rgb(71, 85, 105) transparent;
+}
+
+.dark .tag-filter-scrollbar::-webkit-scrollbar-track {
+    background: rgb(30, 41, 59);
+}
+
+.dark .tag-filter-scrollbar::-webkit-scrollbar-thumb {
+    background: rgb(71, 85, 105);
+}
+
+.dark .tag-filter-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgb(100, 116, 139);
+}
