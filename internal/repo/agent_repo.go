@@ -219,3 +219,20 @@ func (r *AgentRepo) GetAllTags(ctx context.Context) ([]string, error) {
 
 	return tags, nil
 }
+
+// FindAgentsWithTrafficReset 查询配置了流量自动重置的探针
+func (r *AgentRepo) FindAgentsWithTrafficReset(ctx context.Context) ([]models.Agent, error) {
+	var agents []models.Agent
+	err := r.db.WithContext(ctx).
+		Where("traffic_reset_day > 0").
+		Find(&agents).Error
+	return agents, err
+}
+
+// UpdateTrafficStats 批量更新流量统计字段
+func (r *AgentRepo) UpdateTrafficStats(ctx context.Context, agentID string, updates map[string]interface{}) error {
+	return r.db.WithContext(ctx).
+		Model(&models.Agent{}).
+		Where("id = ?", agentID).
+		Updates(updates).Error
+}

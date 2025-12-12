@@ -1,7 +1,7 @@
 import {type ReactNode, useEffect, useState} from 'react';
 import {Link, useNavigate} from 'react-router-dom';
 import {useQuery} from '@tanstack/react-query';
-import {Cpu, EthernetPortIcon, HardDrive, Loader2, MemoryStick, Network} from 'lucide-react';
+import {Cpu, EthernetPortIcon, HardDrive, Loader2, MemoryStick, Network, Database} from 'lucide-react';
 import {listAgents, getPublicTags} from '@/api/agent.ts';
 import type {Agent, LatestMetrics} from '@/types';
 import {usePublicLayout} from '../PublicLayout';
@@ -325,6 +325,33 @@ const ServerList = () => {
                                         </span>
                                     </div>
                                 </div>
+                                {agent.trafficLimit > 0 && (
+                                    <div
+                                        className="flex flex-col gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 px-3 py-2.5">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <div
+                                                    className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                                                    <Database className="h-3.5 w-3.5"/>
+                                                </div>
+                                                <span className="text-xs font-medium text-slate-600 dark:text-slate-200">流量统计</span>
+                                            </div>
+                                            <span className="text-xs font-semibold text-slate-900 dark:text-white">
+                                                {formatPercentValue((agent.trafficUsed || 0) / agent.trafficLimit * 100)}%
+                                            </span>
+                                        </div>
+                                        <ProgressBar
+                                            percent={(agent.trafficUsed || 0) / agent.trafficLimit * 100}
+                                            colorClass={getProgressColor((agent.trafficUsed || 0) / agent.trafficLimit * 100)}
+                                        />
+                                        <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-300">
+                                            <span>{formatBytes(agent.trafficUsed || 0)} / {formatBytes(agent.trafficLimit)}</span>
+                                            {agent.trafficResetDay && agent.trafficResetDay > 0 && (
+                                                <span className="text-slate-500 dark:text-slate-400">每月{agent.trafficResetDay}号重置</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </Link>
@@ -475,15 +502,35 @@ const ServerList = () => {
                                     </div>
                                 </td>
                                 <td className="px-5 py-4 align-center">
-                                    <div className="flex flex-col gap-1 text-xs text-slate-600 dark:text-slate-300">
-                                        <div className="flex items-center gap-1 whitespace-nowrap">
-                                            <span className="text-slate-400 dark:text-slate-500">↑</span>
-                                            <span className="font-medium tabular-nums">{formatSpeed(upload)}</span>
+                                    <div className="flex flex-col gap-2">
+                                        <div className="flex flex-col gap-1 text-xs text-slate-600 dark:text-slate-300">
+                                            <div className="flex items-center gap-1 whitespace-nowrap">
+                                                <span className="text-slate-400 dark:text-slate-500">↑</span>
+                                                <span className="font-medium tabular-nums">{formatSpeed(upload)}</span>
+                                            </div>
+                                            <div className="flex items-center gap-1 whitespace-nowrap">
+                                                <span className="text-slate-400 dark:text-slate-500">↓</span>
+                                                <span className="font-medium tabular-nums">{formatSpeed(download)}</span>
+                                            </div>
                                         </div>
-                                        <div className="flex items-center gap-1 whitespace-nowrap">
-                                            <span className="text-slate-400 dark:text-slate-500">↓</span>
-                                            <span className="font-medium tabular-nums">{formatSpeed(download)}</span>
-                                        </div>
+                                        {agent.trafficLimit > 0 && (
+                                            <div className="flex flex-col gap-1">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-16">
+                                                        <ProgressBar
+                                                            percent={(agent.trafficUsed || 0) / agent.trafficLimit * 100}
+                                                            colorClass={getProgressColor((agent.trafficUsed || 0) / agent.trafficLimit * 100)}
+                                                        />
+                                                    </div>
+                                                    <span className="text-xs font-semibold text-slate-900 dark:text-white">
+                                                        {formatPercentValue((agent.trafficUsed || 0) / agent.trafficLimit * 100)}%
+                                                    </span>
+                                                </div>
+                                                <div className="text-xs text-slate-500 dark:text-slate-400">
+                                                    {formatBytes(agent.trafficUsed || 0)} / {formatBytes(agent.trafficLimit)}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 </td>
                             </tr>

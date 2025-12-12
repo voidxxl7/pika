@@ -99,6 +99,9 @@ func setup(app *orz.App) error {
 	// 启动监控统计计算任务
 	go startMonitorStatsCalculation(ctx, components, app.Logger())
 
+	// 启动流量重置检查任务(每小时检查一次)
+	go startTrafficResetCheck(ctx, components, app.Logger())
+
 	// 启动 DDNS 定时任务
 	go components.DDNSService.Run(ctx)
 
@@ -192,6 +195,7 @@ func setupApi(app *orz.App, components *AppComponents) {
 		publicApiWithOptionalAuth.GET("/agents/:id/metrics", components.AgentHandler.GetMetrics)
 		publicApiWithOptionalAuth.GET("/agents/:id/metrics/latest", components.AgentHandler.GetLatestMetrics)
 		publicApiWithOptionalAuth.GET("/agents/:id/network-interfaces", components.AgentHandler.GetAvailableNetworkInterfaces)
+		publicApiWithOptionalAuth.GET("/agents/:id/traffic", components.AgentHandler.GetTrafficStats)
 		// 指标配置（公开访问）- 用于获取时间范围选项等配置
 		publicApiWithOptionalAuth.GET("/metrics-config", components.PropertyHandler.GetMetricsConfig)
 
@@ -240,6 +244,10 @@ func setupApi(app *orz.App, components *AppComponents) {
 		adminApi.POST("/agents/batch/tags", components.AgentHandler.BatchUpdateTags)
 		adminApi.DELETE("/agents/:id", components.AgentHandler.Delete)
 		adminApi.POST("/agents/:id/command", components.AgentHandler.SendCommand)
+
+		// 流量管理（管理员访问）
+		adminApi.PUT("/agents/:id/traffic-config", components.AgentHandler.UpdateTrafficConfig)
+		adminApi.POST("/agents/:id/traffic-reset", components.AgentHandler.ResetAgentTraffic)
 
 		// VPS审计结果（管理员访问）
 		adminApi.GET("/agents/:id/audit/result", components.AgentHandler.GetAuditResult)
@@ -461,6 +469,26 @@ func startMonitorStatsCalculation(ctx context.Context, components *AppComponents
 				logger.Error("计算监控统计数据失败", zap.Error(err))
 			} else {
 				logger.Debug("监控统计数据计算完成")
+			}
+		}
+	}
+}
+
+// startTrafficResetCheck 启动流量重置检查定时任务
+func startTrafficResetCheck(ctx context.Context, components *AppComponents, logger *zap.Logger) {
+	logger.Info("启动流量重置检查任务")
+
+	ticker := time.NewTicker(1 * time.Hour) // 每小时检查一次
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			logger.Info("流量重置检查任务已停止")
+			return
+		case <-ticker.C:
+			if err := components.AgentService.CheckAndResetTraffic(ctx); err != nil {
+				logger.Error("流量重置检查失败", zap.Error(err))
 			}
 		}
 	}

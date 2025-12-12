@@ -27,7 +27,8 @@ func InitializeApp(logger *zap.Logger, db *gorm.DB, cfg *config.AppConfig) (*App
 	accountHandler := handler.NewAccountHandler(accountService)
 	apiKeyService := service.NewApiKeyService(logger, db)
 	propertyService := service.NewPropertyService(logger, db)
-	metricService := service.NewMetricService(logger, db, propertyService)
+	trafficService := service.NewTrafficService(logger, db)
+	metricService := service.NewMetricService(logger, db, propertyService, trafficService)
 	geoIPService, err := service.NewGeoIPService(logger, cfg)
 	if err != nil {
 		return nil, err

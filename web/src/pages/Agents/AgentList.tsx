@@ -3,9 +3,9 @@ import {useNavigate} from 'react-router-dom';
 import type {ActionType, ProColumns} from '@ant-design/pro-components';
 import {ProTable} from '@ant-design/pro-components';
 import type {MenuProps} from 'antd';
-import {App, Button, DatePicker, Divider, Dropdown, Form, Input, Modal, Radio, Select, Space, Tag} from 'antd';
+import {App, Button, DatePicker, Divider, Dropdown, Form, Input, InputNumber, Modal, Radio, Select, Space, Tag} from 'antd';
 import {Edit, Eye, MoreVertical, Plus, RefreshCw, Shield, Tags, Trash2} from 'lucide-react';
-import {batchUpdateTags, deleteAgent, getAgentPaging, getTags, updateAgentInfo} from '@/api/agent.ts';
+import {batchUpdateTags, deleteAgent, getAgentPaging, getTags, updateAgentInfo, updateTrafficConfig} from '@/api/agent.ts';
 import type {Agent} from '@/types';
 import {getErrorMessage} from '@/lib/utils';
 import dayjs from 'dayjs';
@@ -46,6 +46,8 @@ const AgentList = () => {
             tags: agent.tags || [],
             expireTime: agent.expireTime ? dayjs(agent.expireTime) : null,
             visibility: agent.visibility || 'public',
+            trafficLimit: agent.trafficLimit ? agent.trafficLimit / (1024 * 1024 * 1024) : 0, // 转换为GB
+            trafficResetDay: agent.trafficResetDay || 0,
         });
         setEditModalVisible(true);
     };
@@ -71,6 +73,14 @@ const AgentList = () => {
             }
 
             await updateAgentInfo(currentAgent.id, data);
+
+            // 保存流量配置（将GB转换为字节）
+            const trafficLimitBytes = (values.trafficLimit || 0) * 1024 * 1024 * 1024;
+            await updateTrafficConfig(currentAgent.id, {
+                trafficLimit: trafficLimitBytes,
+                trafficResetDay: values.trafficResetDay || 0,
+            });
+
             messageApi.success('探针信息更新成功');
             setEditModalVisible(false);
             actionRef.current?.reload();
@@ -461,6 +471,38 @@ const AgentList = () => {
                             options={[
                                 {label: '匿名可见', value: 'public'},
                                 {label: '登录可见', value: 'private'},
+                            ]}
+                        />
+                    </Form.Item>
+                    <Form.Item
+                        label="流量限额"
+                        name="trafficLimit"
+                        rules={[{required: true, message: '请输入流量限额'}]}
+                        extra="设置流量限额(GB)，0表示不限制"
+                    >
+                        <InputNumber
+                            min={0}
+                            step={1}
+                            precision={0}
+                            placeholder="请输入流量限额(GB)"
+                            style={{width: '100%'}}
+                            addonAfter="GB"
+                        />
+                    </Form.Item>
+                    <Form.Item
+                        label="流量重置日期"
+                        name="trafficResetDay"
+                        rules={[{required: true, message: '请选择流量重置日期'}]}
+                        extra="每月的几号重置流量，0表示不自动重置"
+                    >
+                        <Select
+                            placeholder="请选择流量重置日期"
+                            options={[
+                                {label: '不自动重置', value: 0},
+                                ...Array.from({length: 31}, (_, i) => ({
+                                    label: `每月${i + 1}号`,
+                                    value: i + 1,
+                                })),
                             ]}
                         />
                     </Form.Item>

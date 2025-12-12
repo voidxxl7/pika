@@ -529,6 +529,15 @@ func (h *AgentHandler) GetAgents(c echo.Context) error {
 			"status":     agent.Status,
 			"lastSeenAt": agent.LastSeenAt,
 			"visibility": agent.Visibility,
+			// 流量统计相关字段
+			"trafficLimit":        agent.TrafficLimit,
+			"trafficUsed":         agent.TrafficUsed,
+			"trafficResetDay":     agent.TrafficResetDay,
+			"trafficPeriodStart":  agent.TrafficPeriodStart,
+			"trafficBaselineRecv": agent.TrafficBaselineRecv,
+			"trafficAlertSent80":  agent.TrafficAlertSent80,
+			"trafficAlertSent90":  agent.TrafficAlertSent90,
+			"trafficAlertSent100": agent.TrafficAlertSent100,
 		}
 
 		// 获取最新指标数据
@@ -944,5 +953,61 @@ func (h *AgentHandler) BatchUpdateTags(c echo.Context) error {
 	return orz.Ok(c, orz.Map{
 		"message": "批量更新标签成功",
 		"count":   len(req.AgentIDs),
+	})
+}
+
+// UpdateTrafficConfig 更新流量配置(管理员)
+func (h *AgentHandler) UpdateTrafficConfig(c echo.Context) error {
+	agentID := c.Param("id")
+
+	var req struct {
+		TrafficLimit    uint64 `json:"trafficLimit"`
+		TrafficResetDay int    `json:"trafficResetDay"`
+	}
+
+	if err := c.Bind(&req); err != nil {
+		return orz.NewError(400, "请求参数错误")
+	}
+
+	ctx := c.Request().Context()
+	if err := h.agentService.UpdateTrafficConfig(ctx, agentID, req.TrafficLimit, req.TrafficResetDay); err != nil {
+		return err
+	}
+
+	return orz.Ok(c, orz.Map{
+		"message": "流量配置更新成功",
+	})
+}
+
+// GetTrafficStats 查询流量统计(支持可选认证)
+func (h *AgentHandler) GetTrafficStats(c echo.Context) error {
+	agentID := c.Param("id")
+	ctx := c.Request().Context()
+
+	// 检查访问权限
+	isAuthenticated := utils.IsAuthenticated(c)
+	if _, err := h.agentService.GetAgentByAuth(ctx, agentID, isAuthenticated); err != nil {
+		return err
+	}
+
+	stats, err := h.agentService.GetTrafficStats(ctx, agentID)
+	if err != nil {
+		return err
+	}
+
+	return orz.Ok(c, stats)
+}
+
+// ResetAgentTraffic 手动重置流量(管理员)
+func (h *AgentHandler) ResetAgentTraffic(c echo.Context) error {
+	agentID := c.Param("id")
+	ctx := c.Request().Context()
+
+	if err := h.agentService.ResetAgentTraffic(ctx, agentID); err != nil {
+		return err
+	}
+
+	return orz.Ok(c, orz.Map{
+		"message": "流量已重置",
 	})
 }

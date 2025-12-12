@@ -45,17 +45,19 @@ type MetricService struct {
 	metricRepo       *repo.MetricRepo
 	monitorStatsRepo *repo.MonitorStatsRepo
 	propertyService  *PropertyService
+	trafficService   *TrafficService // 流量统计服务
 
 	latestCache cache.Cache[string, *LatestMetrics]
 }
 
 // NewMetricService 创建指标服务
-func NewMetricService(logger *zap.Logger, db *gorm.DB, propertyService *PropertyService) *MetricService {
+func NewMetricService(logger *zap.Logger, db *gorm.DB, propertyService *PropertyService, trafficService *TrafficService) *MetricService {
 	return &MetricService{
 		logger:           logger,
 		metricRepo:       repo.NewMetricRepo(db),
 		monitorStatsRepo: repo.NewMonitorStatsRepo(db),
 		propertyService:  propertyService,
+		trafficService:   trafficService,
 		latestCache:      cache.New[string, *LatestMetrics](time.Minute),
 	}
 }
@@ -221,7 +223,21 @@ func (s *MetricService) HandleMetricData(ctx context.Context, agentID string, me
 			TotalBytesRecvTotal: totalRecvTotal,
 			TotalInterfaces:     len(networkDataList),
 		}
-		return s.metricRepo.SaveNetworkMetric(ctx, totalMetric)
+
+		// 保存网络指标
+		if err := s.metricRepo.SaveNetworkMetric(ctx, totalMetric); err != nil {
+			return err
+		}
+
+		// 更新流量统计(仅处理汇总数据)
+		if err := s.trafficService.UpdateAgentTraffic(ctx, agentID, totalRecvTotal); err != nil {
+			s.logger.Error("更新探针流量统计失败",
+				zap.String("agentId", agentID),
+				zap.Error(err))
+			// 流量统计失败不影响指标保存，只记录日志
+		}
+
+		return nil
 
 	case protocol.MetricTypeNetworkConnection:
 		var connData protocol.NetworkConnectionData

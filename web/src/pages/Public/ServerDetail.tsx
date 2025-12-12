@@ -3,6 +3,7 @@ import {useNavigate, useParams} from 'react-router-dom';
 import {
     ArrowLeft,
     Cpu,
+    Database,
     HardDrive,
     Loader2,
     MemoryStick,
@@ -829,8 +830,38 @@ const ServerDetail = () => {
             ],
         });
 
+        // 如果配置了流量限额，添加流量统计卡片
+        if (agent && agent.trafficLimit && agent.trafficLimit > 0) {
+            const trafficUsedPercent = ((agent.trafficUsed || 0) / agent.trafficLimit) * 100;
+            const trafficRemaining = agent.trafficLimit - (agent.trafficUsed || 0);
+
+            cards.push({
+                key: 'traffic',
+                icon: Database,
+                title: '流量统计',
+                usagePercent: `${formatPercentValue(trafficUsedPercent)}%`,
+                accent: 'blue',
+                metrics: [
+                    {
+                        label: '已用 / 总量',
+                        value: `${formatBytes(agent.trafficUsed || 0)} / ${formatBytes(agent.trafficLimit)}`,
+                    },
+                    {
+                        label: '剩余流量',
+                        value: `${formatBytes(trafficRemaining > 0 ? trafficRemaining : 0)}`,
+                    },
+                    ...(agent.trafficResetDay && agent.trafficResetDay > 0
+                        ? [{
+                            label: '重置日期',
+                            value: `每月${agent.trafficResetDay}号`,
+                        }]
+                        : []),
+                ],
+            });
+        }
+
         return cards;
-    }, [latestMetrics]);
+    }, [latestMetrics, agent]);
 
     const platformDisplay = latestMetrics?.host?.platform
         ? `${latestMetrics.host.platform} ${latestMetrics.host.platformVersion || ''}`.trim()

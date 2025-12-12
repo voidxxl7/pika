@@ -27,6 +27,7 @@ func InitializeApp(logger *zap.Logger, db *gorm.DB, cfg *config.AppConfig) (*App
 		service.NewPropertyService,
 		service.NewMonitorService,
 		service.NewTamperService,
+		service.NewTrafficService,
 		service.NewMetricService,
 		service.NewGeoIPService,
 		service.NewDDNSService,

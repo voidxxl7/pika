@@ -18,6 +18,16 @@ type Agent struct {
 	LastSeenAt int64                       `gorm:"index" json:"lastSeenAt"`               // 最后上线时间（时间戳毫秒）
 	CreatedAt  int64                       `json:"createdAt"`                             // 创建时间（时间戳毫秒）
 	UpdatedAt  int64                       `json:"updatedAt" gorm:"autoUpdateTime:milli"` // 更新时间（时间戳毫秒）
+
+	// 流量统计相关字段
+	TrafficLimit        uint64 `json:"trafficLimit"`        // 流量限额(字节), 0表示不限制
+	TrafficUsed         uint64 `json:"trafficUsed"`         // 当前周期已使用流量(字节)
+	TrafficResetDay     int    `json:"trafficResetDay"`     // 流量重置日期(1-31), 0表示不自动重置
+	TrafficPeriodStart  int64  `json:"trafficPeriodStart"`  // 当前周期开始时间(时间戳毫秒)
+	TrafficBaselineRecv uint64 `json:"trafficBaselineRecv"` // 当前周期流量基线(BytesRecvTotal)
+	TrafficAlertSent80  bool   `json:"trafficAlertSent80"`  // 是否已发送80%告警
+	TrafficAlertSent90  bool   `json:"trafficAlertSent90"`  // 是否已发送90%告警
+	TrafficAlertSent100 bool   `json:"trafficAlertSent100"` // 是否已发送100%告警
 }
 
 func (Agent) TableName() string {
