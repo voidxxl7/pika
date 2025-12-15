@@ -160,24 +160,6 @@ func (h *MonitorHandler) GetStatsByID(c echo.Context) error {
 	return orz.Ok(c, stats)
 }
 
-// GetDetail 获取监控详情（整合版，公开接口，已登录返回全部，未登录返回公开可见）
-func (h *MonitorHandler) GetDetail(c echo.Context) error {
-	id := c.Param("id")
-	ctx := c.Request().Context()
-
-	// 验证监控任务访问权限
-	if _, err := h.monitorService.GetMonitorByAuth(ctx, id, utils.IsAuthenticated(c)); err != nil {
-		return err
-	}
-
-	detail, err := h.monitorService.GetMonitorDetail(ctx, id)
-	if err != nil {
-		return err
-	}
-
-	return orz.Ok(c, detail)
-}
-
 // GetAgentStatsByID 获取指定监控任务各探针的统计数据（公开接口，已登录返回全部，未登录返回公开可见）
 func (h *MonitorHandler) GetAgentStatsByID(c echo.Context) error {
 	id := c.Param("id")

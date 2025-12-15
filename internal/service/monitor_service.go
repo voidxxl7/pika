@@ -404,43 +404,6 @@ func (s *MonitorService) GetMonitorStatsByID(ctx context.Context, monitorID stri
 	return &overview, nil
 }
 
-// GetMonitorDetail 获取监控详情（整合stats和agents）
-func (s *MonitorService) GetMonitorDetail(ctx context.Context, monitorID string) (*metric.MonitorDetailResponse, error) {
-	// 查询监控任务
-	monitor, err := s.MonitorRepo.FindById(ctx, monitorID)
-	if err != nil {
-		return nil, err
-	}
-
-	// 查询聚合统计
-	stats := s.metricService.GetMonitorStats(monitorID)
-
-	// 查询各探针数据
-	agents := s.metricService.GetMonitorAgentStats(monitorID)
-
-	// 根据 ShowTargetPublic 字段决定是否返回真实的 Target
-	target := monitor.Target
-	if !monitor.ShowTargetPublic {
-		target = "******"
-	}
-
-	// 构建响应
-	detail := &metric.MonitorDetailResponse{
-		ID:               monitor.ID,
-		Name:             monitor.Name,
-		Type:             monitor.Type,
-		Target:           target,
-		ShowTargetPublic: monitor.ShowTargetPublic,
-		Description:      monitor.Description,
-		Enabled:          monitor.Enabled,
-		Interval:         monitor.Interval,
-		Stats:            stats,
-		Agents:           agents,
-	}
-
-	return detail, nil
-}
-
 // GetMonitorHistory 获取监控任务的历史时序数据
 // 直接返回 VictoriaMetrics 的原始时序数据，包含所有探针的独立序列
 // 支持时间范围：15m, 30m, 1h, 3h, 6h, 12h, 1d, 3d, 7d

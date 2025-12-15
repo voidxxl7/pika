@@ -193,7 +193,6 @@ func setupApi(app *orz.App, components *AppComponents) {
 		publicApiWithOptionalAuth.GET("/monitors/:id/stats", components.MonitorHandler.GetStatsByID)
 		publicApiWithOptionalAuth.GET("/monitors/:id/agents", components.MonitorHandler.GetAgentStatsByID)
 		publicApiWithOptionalAuth.GET("/monitors/:id/history", components.MonitorHandler.GetHistoryByID)
-		publicApiWithOptionalAuth.GET("/monitors/:id", components.MonitorHandler.GetDetail) // 整合版接口
 
 		// Logo（公开访问）- 用于公共页面只获取 Logo
 		publicApiWithOptionalAuth.GET("/logo", components.PropertyHandler.GetLogo)
