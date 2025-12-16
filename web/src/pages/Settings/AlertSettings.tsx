@@ -1,17 +1,17 @@
-import {useEffect} from 'react';
-import {App, Button, Card, Form, InputNumber, Space, Switch} from 'antd';
-import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
-import type {AlertConfig} from '@/api/property';
-import {getAlertConfig, saveAlertConfig} from '@/api/property';
-import {getErrorMessage} from '@/lib/utils';
+import { useEffect } from 'react';
+import { App, Button, Card, Form, InputNumber, Space, Switch } from 'antd';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { AlertConfig } from '@/api/property';
+import { getAlertConfig, saveAlertConfig } from '@/api/property';
+import { getErrorMessage } from '@/lib/utils';
 
 const AlertSettings = () => {
     const [form] = Form.useForm();
-    const {message: messageApi} = App.useApp();
+    const { message: messageApi } = App.useApp();
     const queryClient = useQueryClient();
 
     // 获取全局告警配置
-    const {data: configData, isLoading: configLoading} = useQuery({
+    const { data: configData, isLoading: configLoading } = useQuery({
         queryKey: ['alertConfig'],
         queryFn: getAlertConfig,
     });
@@ -28,7 +28,7 @@ const AlertSettings = () => {
         mutationFn: (config: AlertConfig) => saveAlertConfig(config),
         onSuccess: () => {
             messageApi.success('告警配置保存成功');
-            queryClient.invalidateQueries({queryKey: ['alertConfig']});
+            queryClient.invalidateQueries({ queryKey: ['alertConfig'] });
         },
         onError: (error: unknown) => {
             messageApi.error(getErrorMessage(error, '保存配置失败'));
@@ -46,21 +46,29 @@ const AlertSettings = () => {
                 <Space direction="vertical" className="w-full">
                     <Card title="基本信息" type="inner">
                         <Form.Item label="启用告警" name="enabled" valuePropName="checked">
-                            <Switch checkedChildren="开启" unCheckedChildren="关闭"/>
+                            <Switch checkedChildren="开启" unCheckedChildren="关闭" />
+                        </Form.Item>
+                        <Form.Item
+                            label="IP 打码"
+                            name="maskIP"
+                            valuePropName="checked"
+                            tooltip="开启后，通知消息中的 IP 地址将显示为 192.168.*.* 格式"
+                        >
+                            <Switch checkedChildren="开启" unCheckedChildren="关闭" />
                         </Form.Item>
                     </Card>
 
                     {/*<Divider orientation="left">告警规则</Divider>*/}
 
                     {[
-                        {key: 'cpu', title: 'CPU 告警规则', thresholdLabel: 'CPU 使用率阈值 (%)', max: 100},
-                        {key: 'memory', title: '内存告警规则', thresholdLabel: '内存使用率阈值 (%)', max: 100},
-                        {key: 'disk', title: '磁盘告警规则', thresholdLabel: '磁盘使用率阈值 (%)', max: 100},
-                        {key: 'network', title: '网速告警规则', thresholdLabel: '网速阈值 (MB/s)', max: 10000},
+                        { key: 'cpu', title: 'CPU 告警规则', thresholdLabel: 'CPU 使用率阈值 (%)', max: 100 },
+                        { key: 'memory', title: '内存告警规则', thresholdLabel: '内存使用率阈值 (%)', max: 100 },
+                        { key: 'disk', title: '磁盘告警规则', thresholdLabel: '磁盘使用率阈值 (%)', max: 100 },
+                        { key: 'network', title: '网速告警规则', thresholdLabel: '网速阈值 (MB/s)', max: 10000 },
                     ].map((rule) => (
                         <Card key={rule.key} title={rule.title} type="inner">
                             <Form.Item noStyle shouldUpdate>
-                                {({getFieldValue}) => {
+                                {({ getFieldValue }) => {
                                     const enabled = getFieldValue(['rules', `${rule.key}Enabled`]);
                                     return (
                                         <div className="flex items-center gap-8">
@@ -70,7 +78,7 @@ const AlertSettings = () => {
                                                 valuePropName="checked"
                                                 className="mb-0"
                                             >
-                                                <Switch/>
+                                                <Switch />
                                             </Form.Item>
                                             <Form.Item
                                                 label={rule.thresholdLabel}
@@ -80,7 +88,7 @@ const AlertSettings = () => {
                                                 <InputNumber
                                                     min={0}
                                                     max={rule.max}
-                                                    style={{width: '100%'}}
+                                                    style={{ width: '100%' }}
                                                     disabled={!enabled}
                                                 />
                                             </Form.Item>
@@ -89,8 +97,8 @@ const AlertSettings = () => {
                                                 name={['rules', `${rule.key}Duration`]}
                                                 className="mb-0"
                                             >
-                                                <InputNumber min={1} max={3600} style={{width: '100%'}}
-                                                             disabled={!enabled}/>
+                                                <InputNumber min={1} max={3600} style={{ width: '100%' }}
+                                                    disabled={!enabled} />
                                             </Form.Item>
                                         </div>
                                     );
@@ -101,7 +109,7 @@ const AlertSettings = () => {
 
                     <Card title="HTTPS 证书告警规则" type="inner">
                         <Form.Item noStyle shouldUpdate>
-                            {({getFieldValue}) => {
+                            {({ getFieldValue }) => {
                                 const enabled = getFieldValue(['rules', 'certEnabled']);
                                 return (
                                     <div className="flex items-center gap-8">
@@ -111,7 +119,7 @@ const AlertSettings = () => {
                                             valuePropName="checked"
                                             className="mb-0"
                                         >
-                                            <Switch/>
+                                            <Switch />
                                         </Form.Item>
                                         <Form.Item
                                             label="证书剩余天数阈值（天）"
@@ -122,7 +130,7 @@ const AlertSettings = () => {
                                             <InputNumber
                                                 min={1}
                                                 max={365}
-                                                style={{width: '100%'}}
+                                                style={{ width: '100%' }}
                                                 disabled={!enabled}
                                             />
                                         </Form.Item>
@@ -134,7 +142,7 @@ const AlertSettings = () => {
 
                     <Card title="服务下线告警规则" type="inner">
                         <Form.Item noStyle shouldUpdate>
-                            {({getFieldValue}) => {
+                            {({ getFieldValue }) => {
                                 const enabled = getFieldValue(['rules', 'serviceEnabled']);
                                 return (
                                     <div className="flex items-center gap-8">
@@ -144,7 +152,7 @@ const AlertSettings = () => {
                                             valuePropName="checked"
                                             className="mb-0"
                                         >
-                                            <Switch/>
+                                            <Switch />
                                         </Form.Item>
                                         <Form.Item
                                             label="持续时间（秒）"
@@ -155,7 +163,7 @@ const AlertSettings = () => {
                                             <InputNumber
                                                 min={1}
                                                 max={3600}
-                                                style={{width: '100%'}}
+                                                style={{ width: '100%' }}
                                                 disabled={!enabled}
                                             />
                                         </Form.Item>
@@ -167,7 +175,7 @@ const AlertSettings = () => {
 
                     <Card title="探针离线告警规则" type="inner">
                         <Form.Item noStyle shouldUpdate>
-                            {({getFieldValue}) => {
+                            {({ getFieldValue }) => {
                                 const enabled = getFieldValue(['rules', 'agentOfflineEnabled']);
                                 return (
                                     <div className="flex items-center gap-8">
@@ -177,7 +185,7 @@ const AlertSettings = () => {
                                             valuePropName="checked"
                                             className="mb-0"
                                         >
-                                            <Switch/>
+                                            <Switch />
                                         </Form.Item>
                                         <Form.Item
                                             label="持续时间（秒）"
@@ -188,7 +196,7 @@ const AlertSettings = () => {
                                             <InputNumber
                                                 min={1}
                                                 max={3600}
-                                                style={{width: '100%'}}
+                                                style={{ width: '100%' }}
                                                 disabled={!enabled}
                                             />
                                         </Form.Item>

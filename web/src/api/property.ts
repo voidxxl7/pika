@@ -127,6 +127,7 @@ export interface AlertRules {
 // 全局告警配置
 export interface AlertConfig {
     enabled: boolean;  // 全局告警开关
+    maskIP: boolean;   // 是否在通知中打码 IP 地址
     rules: AlertRules;
 }
 

@@ -32,8 +32,22 @@ func NewNotifier(logger *zap.Logger) *Notifier {
 	}
 }
 
+// maskIPAddress 打码 IP 地址 (例如: 192.168.1.100 -> 192.168.*.*）
+func maskIPAddress(ip string) string {
+	parts := strings.Split(ip, ".")
+	if len(parts) == 4 {
+		// IPv4: 保留前两段，后两段打码
+		return parts[0] + "." + parts[1] + ".*.*"
+	}
+	// IPv6 或其他格式: 保留前半部分，后半部分打码
+	if len(ip) > 8 {
+		return ip[:len(ip)/2] + "****"
+	}
+	return "****"
+}
+
 // buildMessage 构建告警消息文本
-func (n *Notifier) buildMessage(agent *models.Agent, record *models.AlertRecord) string {
+func (n *Notifier) buildMessage(agent *models.Agent, record *models.AlertRecord, maskIP bool) string {
 	var message string
 
 	// 告警级别图标
@@ -76,6 +90,12 @@ func (n *Notifier) buildMessage(agent *models.Agent, record *models.AlertRecord)
 		valueUnit = "秒"
 	}
 
+	// 处理 IP 地址显示
+	displayIP := agent.IP
+	if maskIP {
+		displayIP = maskIPAddress(agent.IP)
+	}
+
 	if record.Status == "firing" {
 		// 告警触发消息
 		message = fmt.Sprintf(
@@ -93,7 +113,7 @@ func (n *Notifier) buildMessage(agent *models.Agent, record *models.AlertRecord)
 			agent.Name,
 			agent.ID,
 			agent.Hostname,
-			agent.IP,
+			displayIP,
 			record.AlertType,
 			record.Message,
 			record.Threshold,
@@ -103,6 +123,25 @@ func (n *Notifier) buildMessage(agent *models.Agent, record *models.AlertRecord)
 			time.Unix(record.FiredAt/1000, 0).Local().Format("2006-01-02 15:04:05"),
 		)
 	} else if record.Status == "resolved" {
+		// 计算持续时间
+		durationStr := ""
+		if record.FiredAt > 0 && record.ResolvedAt > record.FiredAt {
+			durationMs := record.ResolvedAt - record.FiredAt
+			durationSec := durationMs / 1000
+			if durationSec < 60 {
+				durationStr = fmt.Sprintf("%d秒", durationSec)
+			} else if durationSec < 3600 {
+				minutes := durationSec / 60
+				seconds := durationSec % 60
+				durationStr = fmt.Sprintf("%d分%d秒", minutes, seconds)
+			} else {
+				hours := durationSec / 3600
+				minutes := (durationSec % 3600) / 60
+				seconds := durationSec % 60
+				durationStr = fmt.Sprintf("%d时%d分%d秒", hours, minutes, seconds)
+			}
+		}
+
 		// 告警恢复消息
 		message = fmt.Sprintf(
 			"✅ %s已恢复\n\n"+
@@ -111,15 +150,17 @@ func (n *Notifier) buildMessage(agent *models.Agent, record *models.AlertRecord)
 				"IP: %s\n"+
 				"告警类型: %s\n"+
 				"当前值: %.2f%s\n"+
+				"持续时间: %s\n"+
 				"恢复时间: %s",
 			alertTypeName,
 			agent.Name,
 			agent.ID,
 			agent.Hostname,
-			agent.IP,
+			displayIP,
 			record.AlertType,
 			record.ActualValue,
 			valueUnit,
+			durationStr,
 			time.Unix(record.ResolvedAt/1000, 0).Local().Format("2006-01-02 15:04:05"),
 		)
 	}
@@ -251,7 +292,7 @@ func (n *Notifier) sendEmail(ctx context.Context, smtpHost string, smtpPort int,
 }
 
 // sendCustomWebhook 发送自定义Webhook
-func (n *Notifier) sendCustomWebhook(ctx context.Context, config map[string]interface{}, agent *models.Agent, record *models.AlertRecord) error {
+func (n *Notifier) sendCustomWebhook(ctx context.Context, config map[string]interface{}, agent *models.Agent, record *models.AlertRecord, maskIP bool) error {
 	// 解析配置
 	webhookURL, ok := config["url"].(string)
 	if !ok || webhookURL == "" {
@@ -281,7 +322,7 @@ func (n *Notifier) sendCustomWebhook(ctx context.Context, config map[string]inte
 	}
 
 	// 构建消息内容
-	message := n.buildMessage(agent, record)
+	message := n.buildMessage(agent, record, maskIP)
 
 	// 根据模板类型构建请求体
 	var reqBody io.Reader
@@ -587,12 +628,12 @@ func (n *Notifier) sendEmailByConfig(ctx context.Context, config map[string]inte
 }
 
 // sendWebhookByConfig 根据配置发送自定义Webhook
-func (n *Notifier) sendWebhookByConfig(ctx context.Context, config map[string]interface{}, agent *models.Agent, record *models.AlertRecord) error {
-	return n.sendCustomWebhook(ctx, config, agent, record)
+func (n *Notifier) sendWebhookByConfig(ctx context.Context, config map[string]interface{}, agent *models.Agent, record *models.AlertRecord, maskIP bool) error {
+	return n.sendCustomWebhook(ctx, config, agent, record, maskIP)
 }
 
 // SendNotificationByConfig 根据新的配置结构发送通知
-func (n *Notifier) SendNotificationByConfig(ctx context.Context, channelConfig *models.NotificationChannelConfig, record *models.AlertRecord, agent *models.Agent) error {
+func (n *Notifier) SendNotificationByConfig(ctx context.Context, channelConfig *models.NotificationChannelConfig, record *models.AlertRecord, agent *models.Agent, maskIP bool) error {
 	if !channelConfig.Enabled {
 		return fmt.Errorf("通知渠道已禁用")
 	}
@@ -602,7 +643,7 @@ func (n *Notifier) SendNotificationByConfig(ctx context.Context, channelConfig *
 	)
 
 	// 构造通知消息内容
-	message := n.buildMessage(agent, record)
+	message := n.buildMessage(agent, record, maskIP)
 
 	switch channelConfig.Type {
 	case "dingtalk":
@@ -616,18 +657,18 @@ func (n *Notifier) SendNotificationByConfig(ctx context.Context, channelConfig *
 	case "email":
 		return n.sendEmailByConfig(ctx, channelConfig.Config, message)
 	case "webhook":
-		return n.sendWebhookByConfig(ctx, channelConfig.Config, agent, record)
+		return n.sendWebhookByConfig(ctx, channelConfig.Config, agent, record, maskIP)
 	default:
 		return fmt.Errorf("不支持的通知渠道类型: %s", channelConfig.Type)
 	}
 }
 
 // SendNotificationByConfigs 根据新的配置结构向多个渠道发送通知
-func (n *Notifier) SendNotificationByConfigs(ctx context.Context, channelConfigs []models.NotificationChannelConfig, record *models.AlertRecord, agent *models.Agent) error {
+func (n *Notifier) SendNotificationByConfigs(ctx context.Context, channelConfigs []models.NotificationChannelConfig, record *models.AlertRecord, agent *models.Agent, maskIP bool) error {
 	var errs []error
 
 	for _, channelConfig := range channelConfigs {
-		if err := n.SendNotificationByConfig(ctx, &channelConfig, record, agent); err != nil {
+		if err := n.SendNotificationByConfig(ctx, &channelConfig, record, agent, maskIP); err != nil {
 			n.logger.Error("发送通知失败",
 				zap.String("channelType", channelConfig.Type),
 				zap.Error(err),
@@ -686,7 +727,7 @@ func (n *Notifier) SendWebhookByConfig(ctx context.Context, config map[string]in
 		ActualValue: 0,
 		FiredAt:     time.Now().UnixMilli(),
 	}
-	return n.sendWebhookByConfig(ctx, config, agent, record)
+	return n.sendWebhookByConfig(ctx, config, agent, record, false)
 }
 
 // SendTestNotification 发送测试通知（动态匹配通知渠道类型）
@@ -719,7 +760,7 @@ func (n *Notifier) SendTestNotification(ctx context.Context, channelType string,
 			ActualValue: 0,
 			FiredAt:     time.Now().UnixMilli(),
 		}
-		return n.sendWebhookByConfig(ctx, config, agent, record)
+		return n.sendWebhookByConfig(ctx, config, agent, record, false)
 	default:
 		return fmt.Errorf("不支持的通知渠道类型: %s", channelType)
 	}

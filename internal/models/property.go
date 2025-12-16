@@ -65,6 +65,7 @@ type SystemConfig struct {
 // AlertConfig 全局告警配置
 type AlertConfig struct {
 	Enabled bool       `json:"enabled"` // 是否启用全局告警
+	MaskIP  bool       `json:"maskIP"`  // 是否在通知中打码 IP 地址
 	Rules   AlertRules `json:"rules"`   // 告警规则
 }
 

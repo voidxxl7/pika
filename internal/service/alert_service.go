@@ -308,6 +308,13 @@ func (s *AlertService) sendAlertNotification(record *models.AlertRecord, agent *
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	// 获取告警配置（包含 MaskIP 设置）
+	alertConfig, err := s.propertyService.GetAlertConfig(ctx)
+	if err != nil {
+		s.logger.Error("获取告警配置失败", zap.Error(err))
+		return
+	}
+
 	channelConfigs, err := s.propertyService.GetNotificationChannelConfigs(ctx)
 	if err != nil {
 		s.logger.Error("获取通知渠道配置失败", zap.Error(err))
@@ -325,7 +332,7 @@ func (s *AlertService) sendAlertNotification(record *models.AlertRecord, agent *
 		return
 	}
 
-	if err := s.notifier.SendNotificationByConfigs(ctx, enabledChannels, record, agent); err != nil {
+	if err := s.notifier.SendNotificationByConfigs(ctx, enabledChannels, record, agent, alertConfig.MaskIP); err != nil {
 		s.logger.Error("发送告警通知失败", zap.Error(err))
 	}
 }
