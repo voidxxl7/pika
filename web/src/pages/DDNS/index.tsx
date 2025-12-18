@@ -101,8 +101,8 @@ const DDNSPage = () => {
             width: 250,
             render: (_, record) => {
                 const allDomains = [
-                    ...((record.domainsIpv4 || []).map(d => ({domain: d, type: 'IPv4'}))),
-                    ...((record.domainsIpv6 || []).map(d => ({domain: d, type: 'IPv6'})))
+                    ...((record.domainsIpv4 as string[] || []).map(d => ({domain: d, type: 'IPv4'}))),
+                    ...((record.domainsIpv6 as string[] || []).map(d => ({domain: d, type: 'IPv6'})))
                 ];
                 return (
                     <div className="flex flex-wrap gap-1">
@@ -260,7 +260,6 @@ const DDNSPage = () => {
             <DDNSModal
                 open={modalOpen}
                 id={selectedConfig?.id}
-                config={selectedConfig || undefined}
                 onCancel={() => {
                     setModalOpen(false);
                     setSelectedConfig(null);
