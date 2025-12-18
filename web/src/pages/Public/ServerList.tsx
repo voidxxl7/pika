@@ -80,7 +80,7 @@ const getTemperatures = (metrics?: LatestMetrics) => {
         return [];
     }
     // 返回所有温度数据
-    return metrics.temperature;
+    return metrics.temperature.sort((a, b) => a.type.localeCompare(b.type));
 };
 
 const ServerList = () => {
