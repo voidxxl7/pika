@@ -1,8 +1,9 @@
 import {useMemo} from 'react';
 import {Activity} from 'lucide-react';
 import {Area, AreaChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis} from 'recharts';
-import {ChartPlaceholder, CustomTooltip} from '@/components/common';
+import {ChartPlaceholder, CustomTooltip, MobileLegend} from '@/components/common';
 import {useMetricsQuery} from '@/hooks/server/queries';
+import {useIsMobile} from '@/hooks/use-mobile';
 import {ChartContainer} from './ChartContainer';
 import {formatChartTime} from '@/utils/util';
 
@@ -15,6 +16,8 @@ interface MonitorChartProps {
  * 监控响应时间图表组件
  */
 export const MonitorChart = ({agentId, timeRange}: MonitorChartProps) => {
+    const isMobile = useIsMobile();
+
     // 数据查询
     const {data: metricsResponse, isLoading} = useMetricsQuery({
         agentId,
@@ -58,6 +61,15 @@ export const MonitorChart = ({agentId, timeRange}: MonitorChartProps) => {
     // 颜色配置
     const colors = ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
+    // 准备移动端图例数据
+    const legendItems = useMemo(() => {
+        return monitorKeys.map((key, index) => ({
+            key,
+            label: key,
+            color: colors[index % colors.length],
+        }));
+    }, [monitorKeys]);
+
     // 如果没有数据且不是加载中，不渲染组件
     if (!isLoading && chartData.length === 0) {
         return null;
@@ -75,56 +87,63 @@ export const MonitorChart = ({agentId, timeRange}: MonitorChartProps) => {
     return (
         <ChartContainer title="监控响应时间" icon={Activity}>
             {chartData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={250}>
-                    <AreaChart data={chartData}>
-                        <defs>
+                <>
+                    <ResponsiveContainer width="100%" height={250}>
+                        <AreaChart data={chartData}>
+                            <defs>
+                                {monitorKeys.map((key, index) => (
+                                    <linearGradient key={key} id={`monitorAreaGradient-${index}`} x1="0" y1="0" x2="0"
+                                                    y2="1">
+                                        <stop offset="5%" stopColor={colors[index % colors.length]} stopOpacity={0.4}/>
+                                        <stop offset="95%" stopColor={colors[index % colors.length]} stopOpacity={0}/>
+                                    </linearGradient>
+                                ))}
+                            </defs>
+                            <CartesianGrid stroke="currentColor" strokeDasharray="4 4" className="stroke-cyan-900/30"/>
+                            <XAxis
+                                dataKey="timestamp"
+                                type="number"
+                                scale="time"
+                                domain={['dataMin', 'dataMax']}
+                                tickFormatter={(value) => formatChartTime(Number(value), timeRange)}
+                                stroke="currentColor"
+                                angle={-15}
+                                textAnchor="end"
+                                className="text-xs text-cyan-600 font-mono"
+                                height={45}
+                            />
+                            <YAxis
+                                stroke="currentColor"
+                                className="stroke-cyan-600 text-xs"
+                                tickFormatter={(value) => `${value}ms`}
+                            />
+                            <Tooltip
+                                content={<CustomTooltip unit="ms" variant="dark"/>}
+                                wrapperStyle={{zIndex: 9999,}}
+                            />
+                            {!isMobile && monitorKeys.length > 1 && (
+                                <Legend
+                                    wrapperStyle={{fontSize: '12px'}}
+                                    iconType="line"
+                                />
+                            )}
                             {monitorKeys.map((key, index) => (
-                                <linearGradient key={key} id={`monitorAreaGradient-${index}`} x1="0" y1="0" x2="0"
-                                                y2="1">
-                                    <stop offset="5%" stopColor={colors[index % colors.length]} stopOpacity={0.4}/>
-                                    <stop offset="95%" stopColor={colors[index % colors.length]} stopOpacity={0}/>
-                                </linearGradient>
+                                <Area
+                                    key={key}
+                                    type="monotone"
+                                    dataKey={key}
+                                    name={key}
+                                    stroke={colors[index % colors.length]}
+                                    strokeWidth={2}
+                                    fill={`url(#monitorAreaGradient-${index})`}
+                                    activeDot={{r: 3}}
+                                />
                             ))}
-                        </defs>
-                        <CartesianGrid stroke="currentColor" strokeDasharray="4 4" className="stroke-cyan-900/30"/>
-                        <XAxis
-                            dataKey="timestamp"
-                            type="number"
-                            scale="time"
-                            domain={['dataMin', 'dataMax']}
-                            tickFormatter={(value) => formatChartTime(Number(value), timeRange)}
-                            stroke="currentColor"
-                            angle={-15}
-                            textAnchor="end"
-                            className="text-xs text-cyan-600 font-mono"
-                            height={45}
-                        />
-                        <YAxis
-                            stroke="currentColor"
-                            className="stroke-cyan-600 text-xs"
-                            tickFormatter={(value) => `${value}ms`}
-                        />
-                        <Tooltip content={<CustomTooltip unit="ms" variant="dark"/>}/>
-                        {monitorKeys.length > 1 && (
-                            <Legend
-                                wrapperStyle={{fontSize: '12px'}}
-                                iconType="line"
-                            />
-                        )}
-                        {monitorKeys.map((key, index) => (
-                            <Area
-                                key={key}
-                                type="monotone"
-                                dataKey={key}
-                                name={key}
-                                stroke={colors[index % colors.length]}
-                                strokeWidth={2}
-                                fill={`url(#monitorAreaGradient-${index})`}
-                                activeDot={{r: 3}}
-                            />
-                        ))}
-                    </AreaChart>
-                </ResponsiveContainer>
+                        </AreaChart>
+                    </ResponsiveContainer>
+
+                    <MobileLegend items={legendItems} show={isMobile}/>
+                </>
             ) : (
                 <ChartPlaceholder variant="dark"/>
             )}

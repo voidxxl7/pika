@@ -116,7 +116,7 @@ func AutoStep(start, end time.Time) time.Duration {
 	switch {
 	case r <= time.Hour:
 		return 10 * time.Second
-	case r <= 2*time.Hour:
+	case r <= 3*time.Hour:
 		return 15 * time.Second
 	case r <= 6*time.Hour:
 		return 30 * time.Second

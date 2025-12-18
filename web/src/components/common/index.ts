@@ -4,3 +4,4 @@ export {ChartPlaceholder} from './ChartPlaceholder';
 export {CustomTooltip} from './CustomTooltip';
 export {TimeRangeSelector} from './TimeRangeSelector';
 export {Card} from './Card';
+export {MobileLegend} from './MobileLegend';
