@@ -4,6 +4,7 @@ import {Area, AreaChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XA
 import {type GetMetricsResponse, getMonitorHistory} from '@/api/monitor';
 import {AGENT_COLORS} from '@/constants/colors';
 import {MONITOR_TIME_RANGE_OPTIONS} from '@/constants/time';
+import {useIsMobile} from '@/hooks/use-mobile';
 import type {AgentMonitorStat} from '@/types';
 import CyberCard from "@/components/CyberCard.tsx";
 import {ChartPlaceholder, CustomTooltip, TimeRangeSelector} from "@/components/common";
@@ -21,6 +22,7 @@ interface ResponseTimeChartProps {
 export const ResponseTimeChart = ({monitorId, monitorStats}: ResponseTimeChartProps) => {
     const [selectedAgent, setSelectedAgent] = useState<string>('all');
     const [timeRange, setTimeRange] = useState<string>('12h');
+    const isMobile = useIsMobile();
 
     // 获取历史数据
     const {data: historyData} = useQuery<GetMetricsResponse>({
@@ -76,7 +78,6 @@ export const ResponseTimeChart = ({monitorId, monitorStats}: ResponseTimeChartPr
             series.data.forEach(point => {
                 if (!grouped[point.timestamp]) {
                     grouped[point.timestamp] = {
-                        time: formatChartTime(point.timestamp, timeRange),
                         timestamp: point.timestamp,
                     };
                 }
@@ -87,6 +88,10 @@ export const ResponseTimeChart = ({monitorId, monitorStats}: ResponseTimeChartPr
         // 按时间戳排序
         return Object.values(grouped).sort((a, b) => a.timestamp - b.timestamp);
     }, [historyData, selectedAgent, timeRange]);
+
+    const visibleMonitorStats = useMemo(() => {
+        return monitorStats.filter(stat => selectedAgent === 'all' || stat.agentId === selectedAgent);
+    }, [monitorStats, selectedAgent]);
 
     return (
         <CyberCard className={'p-6'}>
@@ -120,12 +125,11 @@ export const ResponseTimeChart = ({monitorId, monitorStats}: ResponseTimeChartPr
             </div>
 
             {chartData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={360}>
-                    <AreaChart data={chartData}>
-                        <defs>
-                            {monitorStats
-                                .filter(stat => selectedAgent === 'all' || stat.agentId === selectedAgent)
-                                .map((stat) => {
+                <div>
+                    <ResponsiveContainer width="100%" height={360}>
+                        <AreaChart data={chartData}>
+                            <defs>
+                                {visibleMonitorStats.map((stat) => {
                                     const originalIndex = monitorStats.findIndex(s => s.agentId === stat.agentId);
                                     const agentKey = `agent_${stat.agentId}`;
                                     const color = AGENT_COLORS[originalIndex % AGENT_COLORS.length];
@@ -137,37 +141,43 @@ export const ResponseTimeChart = ({monitorId, monitorStats}: ResponseTimeChartPr
                                         </linearGradient>
                                     );
                                 })}
-                        </defs>
-                        <CartesianGrid
-                            strokeDasharray="3 3"
-                            className="stroke-cyan-900/30"
-                            vertical={false}
-                        />
-                        <XAxis
-                            dataKey="time"
-                            className="text-xs text-cyan-600 font-mono"
-                            stroke="#164e63"
-                            tickLine={false}
-                            axisLine={false}
-                            // minTickGap={50}
-                            angle={-15}
-                            textAnchor="end"
-                        />
-                        <YAxis
-                            className="text-xs text-cyan-600 font-mono"
-                            stroke="#164e63"
-                            tickLine={false}
-                            axisLine={false}
-                            tickFormatter={(value) => `${value}ms`}
-                        />
-                        <Tooltip content={<CustomTooltip variant={'dark'} unit={'ms'}/>}/>
-                        <Legend
-                            wrapperStyle={{paddingTop: '20px'}}
-                            iconType="circle"
-                        />
-                        {monitorStats
-                            .filter(stat => selectedAgent === 'all' || stat.agentId === selectedAgent)
-                            .map((stat) => {
+                            </defs>
+                            <CartesianGrid
+                                strokeDasharray="3 3"
+                                className="stroke-cyan-900/30"
+                                vertical={false}
+                            />
+                            <XAxis
+                                dataKey="timestamp"
+                                type="number"
+                                scale="time"
+                                domain={['dataMin', 'dataMax']}
+                                tickFormatter={(value) => formatChartTime(Number(value), timeRange)}
+                                className="text-xs text-cyan-600 font-mono"
+                                stroke="#164e63"
+                                tickLine={false}
+                                axisLine={false}
+                                angle={-15}
+                                textAnchor="end"
+                            />
+                            <YAxis
+                                className="text-xs text-cyan-600 font-mono"
+                                stroke="#164e63"
+                                tickLine={false}
+                                axisLine={false}
+                                tickFormatter={(value) => `${value}ms`}
+                            />
+                            <Tooltip
+                                content={<CustomTooltip variant={'dark'} unit={'ms'}/>}
+                                wrapperStyle={{zIndex: 9999}}
+                            />
+                            {!isMobile && (
+                                <Legend
+                                    wrapperStyle={{paddingTop: '20px', zIndex: 1}}
+                                    iconType="circle"
+                                />
+                            )}
+                            {visibleMonitorStats.map((stat) => {
                                 const originalIndex = monitorStats.findIndex(s => s.agentId === stat.agentId);
                                 const agentKey = `agent_${stat.agentId}`;
                                 const color = AGENT_COLORS[originalIndex % AGENT_COLORS.length];
@@ -186,8 +196,29 @@ export const ResponseTimeChart = ({monitorId, monitorStats}: ResponseTimeChartPr
                                     />
                                 );
                             })}
-                    </AreaChart>
-                </ResponsiveContainer>
+                        </AreaChart>
+                    </ResponsiveContainer>
+
+                    {isMobile && visibleMonitorStats.length > 1 && (
+                        <div className="mt-3 rounded-lg border border-cyan-900/40 bg-black/20 px-3 py-2">
+                            <div className="flex max-h-24 flex-wrap gap-x-4 gap-y-2 overflow-y-auto pr-1">
+                                {visibleMonitorStats.map((stat) => {
+                                    const originalIndex = monitorStats.findIndex(s => s.agentId === stat.agentId);
+                                    const color = AGENT_COLORS[originalIndex % AGENT_COLORS.length];
+                                    const label = stat.agentName || stat.agentId.substring(0, 8);
+                                    return (
+                                        <div key={stat.agentId}
+                                             className="flex items-center gap-2 text-xs font-mono text-cyan-300">
+                                            <span className="h-2.5 w-2.5 rounded-full"
+                                                  style={{backgroundColor: color}}/>
+                                            <span className="truncate">{label}</span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+                </div>
             ) : (
                 <ChartPlaceholder
                     variant={'dark'}

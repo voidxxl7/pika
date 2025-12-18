@@ -32,11 +32,8 @@ export const NetworkConnectionChart = ({agentId, timeRange}: NetworkConnectionCh
         metricsResponse.data.series?.forEach(series => {
             const stateName = series.name; // established, time_wait, close_wait, listen
             series.data.forEach(point => {
-                const time = formatChartTime(point.timestamp, timeRange);
-
                 if (!timeMap.has(point.timestamp)) {
                     timeMap.set(point.timestamp, {
-                        time, 
                         timestamp: point.timestamp,
                         established: 0,
                         time_wait: 0,
@@ -70,7 +67,11 @@ export const NetworkConnectionChart = ({agentId, timeRange}: NetworkConnectionCh
                     <LineChart data={chartData}>
                         <CartesianGrid stroke="currentColor" strokeDasharray="4 4" className="stroke-cyan-900/30"/>
                         <XAxis
-                            dataKey="time"
+                            dataKey="timestamp"
+                            type="number"
+                            scale="time"
+                            domain={['dataMin', 'dataMax']}
+                            tickFormatter={(value) => formatChartTime(Number(value), timeRange)}
                             stroke="currentColor"
                             angle={-15}
                             textAnchor="end"

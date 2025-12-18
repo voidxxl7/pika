@@ -1,30 +1,13 @@
 import {useEffect, useMemo, useState} from 'react';
 import {Link, useNavigate} from 'react-router-dom';
 import {useQuery} from '@tanstack/react-query';
-import {
-    Activity,
-    AlertCircle,
-    BarChart3,
-    CheckCircle2,
-    Clock,
-    Globe,
-    Loader2,
-    Maximize2,
-    Search,
-    Server,
-    Shield,
-    ShieldCheck,
-    Wifi
-} from 'lucide-react';
-import {type GetMetricsResponse, getMonitorHistory, getPublicMonitors} from '@/api/monitor.ts';
+import {AlertCircle, BarChart3, CheckCircle2, Clock, Loader2, Maximize2, Search, Server, Shield} from 'lucide-react';
+import {getPublicMonitors} from '@/api/monitor.ts';
 import type {PublicMonitor} from '@/types';
 import {cn} from '@/lib/utils';
-import {formatDateTime} from "@/utils/util.ts";
-import {StatusBadge} from '@/components/monitor/StatusBadge';
-import {CertBadge} from '@/components/monitor/CertBadge';
-import {MiniChart} from '@/components/monitor/MiniChart';
 import StatCard from "@/components/StatCard.tsx";
-import CyberCard from "@/components/CyberCard.tsx";
+import type {DisplayMode, FilterStatus} from "@/components/monitor";
+import MonitorCard from "@/components/monitor/MonitorCard.tsx";
 
 const LoadingSpinner = () => (
     <div className="flex min-h-[400px] w-full items-center justify-center">
@@ -43,149 +26,6 @@ const EmptyState = () => (
     </div>
 );
 
-type DisplayMode = 'avg' | 'max';
-type FilterStatus = 'all' | 'up' | 'down' | 'unknown';
-
-// 类型图标组件
-const TypeIcon = ({type}: { type: string }) => {
-    switch (type.toUpperCase()) {
-        case 'HTTPS':
-            return <ShieldCheck className="w-4 h-4 text-purple-400"/>;
-        case 'HTTP':
-            return <Globe className="w-4 h-4 text-blue-400"/>;
-        case 'TCP':
-            return <Server className="w-4 h-4 text-amber-400"/>;
-        case 'ICMP':
-            return <Wifi className="w-4 h-4 text-cyan-400"/>;
-        default:
-            return <Activity className="w-4 h-4 text-slate-400"/>;
-    }
-};
-
-// 监控卡片组件
-const MonitorCard = ({monitor, displayMode}: {
-    monitor: PublicMonitor;
-    displayMode: DisplayMode;
-}) => {
-    // 为每个监控卡片查询历史数据
-    const {data: historyData} = useQuery<GetMetricsResponse>({
-        queryKey: ['monitorHistory', monitor.id, '1h'],
-        queryFn: async () => {
-            const response = await getMonitorHistory(monitor.id, '1h');
-            return response.data;
-        },
-        refetchInterval: 60000,
-        staleTime: 30000,
-    });
-
-    // 将 VictoriaMetrics 的时序数据转换为图表数据
-    const chartData = useMemo(() => {
-        if (!historyData || !historyData.series || historyData.series?.length === 0) {
-            return [];
-        }
-
-        const timeMap = new Map<number, number[]>();
-
-        historyData.series?.forEach(series => {
-            if (series.data && series.data.length > 0) {
-                series.data.forEach(point => {
-                    if (!timeMap.has(point.timestamp)) {
-                        timeMap.set(point.timestamp, []);
-                    }
-                    timeMap.get(point.timestamp)!.push(point.value);
-                });
-            }
-        });
-
-        const result = Array.from(timeMap.entries())
-            .map(([timestamp, values]) => {
-                let aggregatedValue: number;
-                if (displayMode === 'avg') {
-                    aggregatedValue = Math.round(values.reduce((a, b) => a + b, 0) / values.length);
-                } else {
-                    aggregatedValue = Math.max(...values);
-                }
-
-                return {
-                    time: new Date(timestamp).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}),
-                    value: aggregatedValue,
-                };
-            });
-
-        return result;
-    }, [historyData, displayMode]);
-
-    const displayValue = displayMode === 'avg' ? monitor.responseTime : monitor.responseTimeMax;
-    const displayLabel = displayMode === 'avg' ? '平均延迟' : '最差节点延迟';
-
-    return (
-        <CyberCard className={'p-5'} animation={true} hover={true}>
-            {/* 头部 */}
-            <div className="flex justify-between items-start mb-4">
-                <div className="flex gap-3 flex-1 min-w-0">
-                    <div
-                        className="p-2.5 bg-cyan-950/30 border border-cyan-500/20 rounded-lg flex-shrink-0">
-                        <TypeIcon type={monitor.type}/>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                        <h3 className="font-bold text-sm text-cyan-100 tracking-wide truncate group-hover:text-cyan-400 transition-colors">
-                            {monitor.name}
-                        </h3>
-                        <div className="text-xs font-mono text-cyan-500/60 mb-0.5 tracking-wider truncate">
-                            {monitor.target}
-                        </div>
-                    </div>
-                </div>
-                <div className="flex-shrink-0 ml-2">
-                    <StatusBadge status={monitor.status}/>
-                </div>
-            </div>
-
-            {/* 指标信息 */}
-            <div className="grid grid-cols-2 gap-4 mb-4">
-                <div>
-                    <p className="text-xs text-cyan-500/60 mb-1 flex items-center gap-1">
-                        {displayLabel}
-                        {monitor.agentCount > 0 && (
-                            <span
-                                className="bg-slate-700 text-xs px-1.5 rounded-full text-cyan-300">
-                                    {monitor.agentCount} 节点
-                                </span>
-                        )}
-                    </p>
-                    <div className={`text-xl font-bold flex items-baseline gap-1 ${displayValue > 200 ? 'text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]' : 'text-white drop-shadow-[0_0_8px_rgba(34,211,238,0.5)]'}`}>
-                        {displayValue}<span className="text-xs text-cyan-600 font-normal">ms</span>
-                    </div>
-                </div>
-                <div>
-                    {monitor.type === 'https' && monitor.certExpiryTime ? (
-                        <>
-                            <p className="text-xs text-cyan-500/60 mb-1">SSL 证书</p>
-                            <CertBadge
-                                expiryTime={monitor.certExpiryTime}
-                                daysLeft={monitor.certDaysLeft}
-                            />
-                        </>
-                    ) : (
-                        <>
-                            <p className="text-xs text-cyan-500/60 mb-1">上次检测</p>
-                            <p className="text-sm font-medium text-cyan-300 font-mono">
-                                {formatDateTime(monitor.lastCheckTime)}
-                            </p>
-                        </>
-                    )}
-                </div>
-            </div>
-
-            {/* 迷你走势图 */}
-            <MiniChart
-                data={chartData}
-                lastValue={displayValue}
-                id={monitor.id}
-            />
-        </CyberCard>
-    );
-};
 
 interface Stats {
     total: number;

@@ -75,12 +75,12 @@ const calculateDiskUsage = (metrics?: LatestMetrics) => {
     return metrics.disk.usagePercent;
 };
 
-const getCpuTemperature = (metrics?: LatestMetrics) => {
+const getTemperatures = (metrics?: LatestMetrics) => {
     if (!metrics?.temperature || metrics.temperature.length === 0) {
-        return null;
+        return [];
     }
-    const cpuTemp = metrics.temperature.find(t => t.type === 'CPU');
-    return cpuTemp ? cpuTemp.temperature : null;
+    // 返回所有温度数据
+    return metrics.temperature;
 };
 
 const ServerList = () => {
@@ -264,7 +264,7 @@ const ServerList = () => {
                                 const diskTotal = server.metrics?.disk?.total ?? 0;
                                 const diskUsed = server.metrics?.disk?.used ?? 0;
                                 const {upload, download} = calculateNetworkSpeed(server.metrics);
-                                const cpuTemp = getCpuTemperature(server.metrics);
+                                const temperatures = getTemperatures(server.metrics);
                                 const netConn = server.metrics?.networkConnection;
 
                                 return (
@@ -335,11 +335,16 @@ const ServerList = () => {
                                                         subtext={`${formatBytes(diskUsed, 1)}/${formatBytes(diskTotal, 1)}`}
                                                         color="bg-emerald-500"
                                                     />
-                                                    {cpuTemp !== null && (
-                                                        <div className="flex items-center gap-1.5 mt-1 text-xs font-mono">
+                                                    {temperatures.length > 0 && (
+                                                        <div className="flex items-center gap-2 mt-1 text-xs font-mono flex-wrap">
                                                             <Thermometer className="w-3 h-3 text-orange-400"/>
-                                                            <span className="text-orange-400">{cpuTemp.toFixed(1)}°C</span>
-                                                            <span className="text-cyan-700">CPU温度</span>
+                                                            {temperatures.map((temp, index) => (
+                                                                <span key={index} className="flex items-center gap-1">
+                                                                    <span className="text-orange-400">{temp.temperature?.toFixed(1)}°C</span>
+                                                                    <span className="text-cyan-700">{temp.type}</span>
+                                                                    {index < temperatures.length - 1 && <span className="text-cyan-900">|</span>}
+                                                                </span>
+                                                            ))}
                                                         </div>
                                                     )}
                                                 </div>
@@ -394,8 +399,8 @@ const ServerList = () => {
                                                         <span className="text-cyan-700">监听中</span>
                                                     </div>
                                                     <div className="flex items-center gap-2">
-                                                        <Network className="w-3 h-3 text-amber-400"/>
-                                                        <span className="text-amber-400">{netConn.closeWait || 0}</span>
+                                                        <Network className="w-3 h-3 text-rose-400"/>
+                                                        <span className="text-rose-400">{netConn.closeWait || 0}</span>
                                                         <span className="text-cyan-700">等待关闭</span>
                                                     </div>
                                                 </div>

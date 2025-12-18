@@ -225,6 +225,7 @@ func setupApi(app *orz.App, components *AppComponents) {
 		adminApi.POST("/api-keys/:id/disable", components.ApiKeyHandler.Disable)
 
 		// 探针管理（管理员功能）
+		adminApi.POST("/server-url", components.AgentHandler.GetServerUrl)
 		adminApi.GET("/agents", components.AgentHandler.Paging)
 		adminApi.GET("/agents/statistics", components.AgentHandler.GetStatistics)
 		adminApi.GET("/agents/tags", components.AgentHandler.GetTags)

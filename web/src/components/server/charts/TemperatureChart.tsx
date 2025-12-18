@@ -36,10 +36,8 @@ export const TemperatureChart = ({agentId, timeRange}: TemperatureChartProps) =>
         metricsResponse.data.series?.forEach(series => {
             const sensorName = series.name; // 使用系列名称作为传感器标识
             series.data.forEach(point => {
-                const time = formatChartTime(point.timestamp, timeRange);
-
                 if (!timeMap.has(point.timestamp)) {
-                    timeMap.set(point.timestamp, {time, timestamp: point.timestamp});
+                    timeMap.set(point.timestamp, {timestamp: point.timestamp});
                 }
 
                 const existing = timeMap.get(point.timestamp)!;
@@ -108,7 +106,11 @@ export const TemperatureChart = ({agentId, timeRange}: TemperatureChartProps) =>
                 <LineChart data={chartData}>
                     <CartesianGrid stroke="currentColor" strokeDasharray="4 4" className="stroke-cyan-900/30"/>
                     <XAxis
-                        dataKey="time"
+                        dataKey="timestamp"
+                        type="number"
+                        scale="time"
+                        domain={['dataMin', 'dataMax']}
+                        tickFormatter={(value) => formatChartTime(Number(value), timeRange)}
                         stroke="currentColor"
                         angle={-15}
                         textAnchor="end"

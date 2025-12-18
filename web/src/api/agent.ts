@@ -511,3 +511,12 @@ export const getTrafficStats = (agentId: string) => {
 export const resetAgentTraffic = (agentId: string) => {
     return post(`/admin/agents/${agentId}/traffic-reset`, {});
 };
+
+// 获取服务器地址（管理员接口）
+export interface GetServerUrlResponse {
+    serverUrl: string;
+}
+
+export const getServerUrl = () => {
+    return post<GetServerUrlResponse>('/admin/server-url', {});
+};

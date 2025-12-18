@@ -35,9 +35,7 @@ export const DiskIOChart = ({agentId, timeRange}: DiskIOChartProps) => {
         const timeMap = new Map<number, any>();
 
         readSeries.data.forEach(point => {
-            const time = formatChartTime(point.timestamp, timeRange);
             timeMap.set(point.timestamp, {
-                time,
                 timestamp: point.timestamp,
                 read: Number((point.value / 1024 / 1024).toFixed(2)), // 转换为 MB/s
             });
@@ -79,7 +77,11 @@ export const DiskIOChart = ({agentId, timeRange}: DiskIOChartProps) => {
                         </defs>
                         <CartesianGrid stroke="currentColor" strokeDasharray="4 4" className="stroke-cyan-900/30"/>
                         <XAxis
-                            dataKey="time"
+                            dataKey="timestamp"
+                            type="number"
+                            scale="time"
+                            domain={['dataMin', 'dataMax']}
+                            tickFormatter={(value) => formatChartTime(Number(value), timeRange)}
                             stroke="currentColor"
                             angle={-15}
                             textAnchor="end"

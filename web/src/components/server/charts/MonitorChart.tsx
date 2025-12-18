@@ -34,7 +34,6 @@ export const MonitorChart = ({agentId, timeRange}: MonitorChartProps) => {
             s.data.forEach((point) => {
                 if (!timestampMap.has(point.timestamp)) {
                     timestampMap.set(point.timestamp, {
-                        time: formatChartTime(point.timestamp, timeRange),
                         timestamp: point.timestamp,
                     });
                 }
@@ -89,7 +88,11 @@ export const MonitorChart = ({agentId, timeRange}: MonitorChartProps) => {
                         </defs>
                         <CartesianGrid stroke="currentColor" strokeDasharray="4 4" className="stroke-cyan-900/30"/>
                         <XAxis
-                            dataKey="time"
+                            dataKey="timestamp"
+                            type="number"
+                            scale="time"
+                            domain={['dataMin', 'dataMax']}
+                            tickFormatter={(value) => formatChartTime(Number(value), timeRange)}
                             stroke="currentColor"
                             angle={-15}
                             textAnchor="end"

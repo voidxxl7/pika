@@ -30,14 +30,12 @@ export const GpuChart = ({agentId, timeRange}: GpuChartProps) => {
         // 按时间戳聚合利用率和温度系列
         const timeMap = new Map<number, any>();
 
-        const utilizationSeries = metricsResponse.data.series?.find(s => s.name === 'utilization');
-        const temperatureSeries = metricsResponse.data.series?.find(s => s.name === 'temperature');
+        const utilizationSeries = metricsResponse.data?.series?.find(s => s.name === 'utilization');
+        const temperatureSeries = metricsResponse.data?.series?.find(s => s.name === 'temperature');
 
         // 添加利用率数据
         utilizationSeries?.data.forEach(point => {
-            const time = formatChartTime(point.timestamp, timeRange);
             timeMap.set(point.timestamp, {
-                time,
                 timestamp: point.timestamp,
                 utilization: Number(point.value.toFixed(2)),
             });
@@ -74,7 +72,11 @@ export const GpuChart = ({agentId, timeRange}: GpuChartProps) => {
                 <LineChart data={chartData}>
                     <CartesianGrid stroke="currentColor" strokeDasharray="4 4" className="stroke-cyan-900/30"/>
                     <XAxis
-                        dataKey="time"
+                        dataKey="timestamp"
+                        type="number"
+                        scale="time"
+                        domain={['dataMin', 'dataMax']}
+                        tickFormatter={(value) => formatChartTime(Number(value), timeRange)}
                         stroke="currentColor"
                         className="stroke-cyan-600"
                         style={{fontSize: '12px'}}

@@ -37,13 +37,13 @@ export const GpuMonitorSection = ({latestMetrics}: GpuMonitorSectionProps) => {
                                 </div>
                             </div>
                             <span className="text-2xl font-bold text-purple-400">
-                                {gpu.utilization.toFixed(1)}%
+                                {gpu.utilization?.toFixed(1)}%
                             </span>
                         </div>
                         <div className="space-y-2 text-xs">
                             <div className="flex items-center justify-between">
                                 <span className="text-cyan-600 font-mono text-xs uppercase tracking-wider">温度</span>
-                                <span className="font-medium text-cyan-200">{gpu.temperature.toFixed(1)}°C</span>
+                                <span className="font-medium text-cyan-200">{gpu.temperature?.toFixed(1)}°C</span>
                             </div>
                             <div className="flex items-center justify-between">
                                 <span className="text-cyan-600 font-mono text-xs uppercase tracking-wider">显存</span>
@@ -53,11 +53,11 @@ export const GpuMonitorSection = ({latestMetrics}: GpuMonitorSectionProps) => {
                             </div>
                             <div className="flex items-center justify-between">
                                 <span className="text-cyan-600 font-mono text-xs uppercase tracking-wider">功耗</span>
-                                <span className="font-medium text-cyan-200">{gpu.powerDraw.toFixed(1)}W</span>
+                                <span className="font-medium text-cyan-200">{gpu.powerDraw?.toFixed(1)}W</span>
                             </div>
                             <div className="flex items-center justify-between">
                                 <span className="text-cyan-600 font-mono text-xs uppercase tracking-wider">风扇转速</span>
-                                <span className="font-medium text-cyan-200">{gpu.fanSpeed.toFixed(0)}%</span>
+                                <span className="font-medium text-cyan-200">{gpu.fanSpeed?.toFixed(0)}%</span>
                             </div>
                         </div>
                     </div>

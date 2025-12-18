@@ -641,18 +641,19 @@ func (h *AgentHandler) UpdateInfo(c echo.Context) error {
 		return orz.NewError(400, "请求参数错误")
 	}
 
-	// 构建更新字段
-	var updates = models.Agent{
-		ID:         agentID,
-		Name:       req.Name,
-		Tags:       req.Tags,
-		ExpireTime: req.ExpireTime,
-		Visibility: req.Visibility,
-		UpdatedAt:  time.Now().UnixMilli(),
-	}
-
 	ctx := c.Request().Context()
-	if err := h.agentService.AgentRepo.UpdateById(ctx, &updates); err != nil {
+	agent, err := h.agentService.AgentRepo.FindById(ctx, agentID)
+	if err != nil {
+		return err
+	}
+	// 更新字段
+	agent.Name = req.Name
+	agent.Tags = req.Tags
+	agent.ExpireTime = req.ExpireTime
+	agent.Visibility = req.Visibility
+	agent.UpdatedAt = time.Now().UnixMilli()
+
+	if err := h.agentService.AgentRepo.Save(ctx, &agent); err != nil {
 		return err
 	}
 
@@ -720,6 +721,30 @@ func (h *AgentHandler) GetTags(c echo.Context) error {
 	})
 }
 
+// getServerURL 获取服务器地址（支持反向代理）
+func getServerURL(c echo.Context) string {
+	// 优先读取 X-Forwarded-Proto 和 X-Forwarded-Host
+	scheme := c.Request().Header.Get("X-Forwarded-Proto")
+	host := c.Request().Header.Get("X-Forwarded-Host")
+
+	// 如果没有反向代理头部，使用默认值
+	if scheme == "" {
+		scheme = c.Scheme()
+	}
+	if host == "" {
+		host = c.Request().Host
+	}
+
+	return scheme + "://" + host
+}
+
+func (h *AgentHandler) GetServerUrl(c echo.Context) error {
+	serverUrl := getServerURL(c)
+	return orz.Ok(c, orz.Map{
+		"serverUrl": serverUrl,
+	})
+}
+
 // GetInstallScript 生成自动安装脚本
 func (h *AgentHandler) GetInstallScript(c echo.Context) error {
 	token := c.QueryParam("token")
@@ -727,7 +752,8 @@ func (h *AgentHandler) GetInstallScript(c echo.Context) error {
 		return orz.NewError(400, "token不能为空")
 	}
 
-	serverUrl := c.Scheme() + "://" + c.Request().Host
+	// 使用统一的 getServerURL 函数获取服务器地址（支持反向代理）
+	serverUrl := getServerURL(c)
 
 	script := `#!/bin/bash
 set -e

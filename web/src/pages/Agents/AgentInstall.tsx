@@ -2,6 +2,7 @@ import React, {type ReactElement, useCallback, useEffect, useMemo, useState} fro
 import {Alert, App, Button, Card, Select, Space, Tabs, Typography} from 'antd';
 import {CopyIcon} from 'lucide-react';
 import {listApiKeys} from '@/api/apiKey.ts';
+import {getServerUrl} from '@/api/agent.ts';
 import type {ApiKey} from '@/types';
 import linuxPng from '../../assets/os/linux.png';
 import applePng from '../../assets/os/apple.png';
@@ -37,9 +38,12 @@ const AgentInstall = () => {
     const [selectedApiKey, setSelectedApiKey] = useState<string>('');
     const [loading, setLoading] = useState<boolean>(true);
 
+    // 服务器地址相关状态
+    const [backendServerUrl, setBackendServerUrl] = useState<string>('');
+
     const {message} = App.useApp();
     const navigate = useNavigate();
-    const serverUrl = useMemo(() => window.location.origin, []);
+    const frontendUrl = useMemo(() => window.location.origin, []);
 
     // 加载API密钥列表
     useEffect(() => {
@@ -61,6 +65,21 @@ const AgentInstall = () => {
         };
         void fetchApiKeys();
     }, [message]);
+
+    // 加载服务器地址
+    useEffect(() => {
+        const fetchServerUrl = async () => {
+            try {
+                const response = await getServerUrl();
+                const backendUrl = response.data.serverUrl || '';
+                setBackendServerUrl(backendUrl);
+            } catch (error) {
+                console.error('Failed to load server URL:', error);
+            }
+        };
+
+        void fetchServerUrl();
+    }, []);
 
     // 操作系统配置
     const osConfigs: Record<OSType, OSConfig> = useMemo(() => ({
@@ -112,11 +131,13 @@ const AgentInstall = () => {
         }
     }, [message]);
 
-    // 获取一键安装命令
-    const installCommand = useMemo(
-        () => `curl -fsSL ${serverUrl}/api/agent/install.sh?token=${selectedApiKey} | sudo bash`,
-        [serverUrl, selectedApiKey]
-    );
+    // 获取一键安装命令（使用后端检测的地址）
+    const installCommand = useMemo(() => {
+        if (!backendServerUrl || !selectedApiKey) {
+            return '';
+        }
+        return `curl -fsSL ${backendServerUrl}/api/agent/install.sh?token=${selectedApiKey} | sudo bash`;
+    }, [backendServerUrl, selectedApiKey]);
 
     // API Key 选择器选项
     const apiKeyOptions = useMemo(
@@ -126,6 +147,70 @@ const AgentInstall = () => {
         })),
         [apiKeys]
     );
+
+    // 服务器地址检查组件
+    const ServerUrlChecker = useCallback(() => {
+        const hasAddressMismatch = backendServerUrl && backendServerUrl !== frontendUrl;
+
+        if (!hasAddressMismatch) {
+            return null;
+        }
+
+        return (
+            <Alert
+                message="检测到地址不一致"
+                description={
+                    <Space direction="vertical" className="w-full">
+                        <div>
+                            当前访问地址: <Text code>{frontendUrl}</Text>
+                            <br/>
+                            后端检测地址: <Text code>{backendServerUrl}</Text>
+                        </div>
+                        <div>
+                            <Text strong>这通常是因为您使用了反向代理，但未正确配置转发头部。</Text>
+                        </div>
+                        <div>
+                            <Text>请在反向代理配置中添加以下头部：</Text>
+                        </div>
+                        <div>
+                            <Text strong>Nginx 配置示例：</Text>
+                            <pre className="m-0 mt-2 overflow-auto text-xs bg-gray-100 dark:bg-slate-900 p-2 rounded">
+{`location / {
+    proxy_pass http://backend;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+}`}
+                            </pre>
+                        </div>
+                        <div>
+                            <Text strong>Caddy 配置示例：</Text>
+                            <pre className="m-0 mt-2 overflow-auto text-xs bg-gray-100 dark:bg-slate-900 p-2 rounded">
+{`reverse_proxy backend:8080 {
+    header_up X-Forwarded-Proto {scheme}
+    header_up X-Forwarded-Host {host}
+}`}
+                            </pre>
+                        </div>
+                        <div>
+                            <Text strong>Traefik 配置说明：</Text>
+                            <pre className="m-0 mt-2 overflow-auto text-xs bg-gray-100 dark:bg-slate-900 p-2 rounded">
+{`# Traefik 默认会自动添加 X-Forwarded-* 头部
+# 无需额外配置`}
+                            </pre>
+                        </div>
+                        <div className="mt-2">
+                            <Text type="secondary">配置完成后，刷新页面即可生效。</Text>
+                        </div>
+                    </Space>
+                }
+                type="warning"
+                showIcon
+                closable
+            />
+        );
+    }, [backendServerUrl, frontendUrl]);
 
     // API Token 选择组件
     const ApiChooser = useCallback(() => (
@@ -160,6 +245,7 @@ const AgentInstall = () => {
     // 一键安装组件
     const InstallByOneClick = useCallback(() => (
         <Space direction="vertical" className="w-full">
+            <ServerUrlChecker/>
             <ApiChooser/>
             <Alert
                 description="一键安装脚本仅支持 Linux/macOS 系统。"
@@ -171,7 +257,8 @@ const AgentInstall = () => {
                 <Paragraph type="secondary" className="mb-3 text-gray-600 dark:text-slate-400">
                     脚本会自动检测系统架构并下载对应版本的探针，然后完成注册和安装。
                 </Paragraph>
-                <pre className="m-0 overflow-auto text-sm bg-gray-50 dark:bg-slate-800 p-3 rounded text-gray-900 dark:text-slate-100">
+                <pre
+                    className="m-0 overflow-auto text-sm bg-gray-50 dark:bg-slate-800 p-3 rounded text-gray-900 dark:text-slate-100">
                     <code>{installCommand}</code>
                 </pre>
                 <Button
@@ -188,7 +275,7 @@ const AgentInstall = () => {
             <ServiceHelper os={AGENT_NAME}/>
             <ConfigHelper/>
         </Space>
-    ), [ApiChooser, installCommand, copyToClipboard, selectedApiKey]);
+    ), [ServerUrlChecker, ApiChooser, installCommand, copyToClipboard, selectedApiKey]);
 
     // 常用服务管理命令
     const getCommonCommands = useCallback((os: string) => {
@@ -220,7 +307,8 @@ ${agentCmd} version`;
             <Paragraph type="secondary" className="mb-3 text-gray-600 dark:text-slate-400">
                 注册完成后，您可以使用以下命令管理探针服务：
             </Paragraph>
-            <pre className="m-0 overflow-auto text-sm bg-gray-50 dark:bg-slate-800 p-3 rounded text-gray-900 dark:text-slate-100">
+            <pre
+                className="m-0 overflow-auto text-sm bg-gray-50 dark:bg-slate-800 p-3 rounded text-gray-900 dark:text-slate-100">
                 <code>{getCommonCommands(os)}</code>
             </pre>
         </Card>
@@ -252,14 +340,14 @@ ${agentCmd} version`;
                 {
                     title: '1. 下载探针',
                     command: `# 使用 PowerShell 下载
-Invoke-WebRequest -Uri "${serverUrl}${config.downloadUrl}" -OutFile "${AGENT_NAME_EXE}"
+Invoke-WebRequest -Uri "${backendServerUrl}${config.downloadUrl}" -OutFile "${AGENT_NAME_EXE}"
 
 # 或者使用浏览器直接下载
-# ${serverUrl}${config.downloadUrl}`
+# ${backendServerUrl}${config.downloadUrl}`
                 },
                 {
                     title: '2. 注册探针',
-                    command: `.\\${AGENT_NAME_EXE} register --endpoint "${serverUrl}" --token "${selectedApiKey}"`
+                    command: `.\\${AGENT_NAME_EXE} register --endpoint "${backendServerUrl}" --token "${selectedApiKey}"`
                 },
                 {
                     title: '3. 验证安装',
@@ -272,10 +360,10 @@ Invoke-WebRequest -Uri "${serverUrl}${config.downloadUrl}" -OutFile "${AGENT_NAM
             {
                 title: '1. 下载探针',
                 command: `# 使用 wget 下载
-wget ${serverUrl}${config.downloadUrl} -O ${AGENT_NAME}
+wget ${backendServerUrl}${config.downloadUrl} -O ${AGENT_NAME}
 
 # 或使用 curl 下载
-curl -L ${serverUrl}${config.downloadUrl} -o ${AGENT_NAME}`
+curl -L ${backendServerUrl}${config.downloadUrl} -o ${AGENT_NAME}`
             },
             {
                 title: '2. 赋予执行权限',
@@ -287,18 +375,19 @@ curl -L ${serverUrl}${config.downloadUrl} -o ${AGENT_NAME}`
             },
             {
                 title: '4. 注册探针',
-                command: `sudo ${AGENT_NAME} register --endpoint "${serverUrl}" --token "${selectedApiKey}"`
+                command: `sudo ${AGENT_NAME} register --endpoint "${backendServerUrl}" --token "${selectedApiKey}"`
             },
             {
                 title: '5. 验证安装',
                 command: `sudo ${AGENT_NAME} status`
             }
         ];
-    }, [osConfigs, serverUrl, selectedApiKey]);
+    }, [osConfigs, backendServerUrl, selectedApiKey]);
 
     // 手动安装组件
     const InstallByManual = useCallback(() => (
         <Space direction="vertical" className="w-full">
+            <ServerUrlChecker/>
             <ApiChooser/>
             <Tabs
                 activeKey={selectedOS}
@@ -319,8 +408,10 @@ curl -L ${serverUrl}${config.downloadUrl} -o ${AGENT_NAME}`
                                 <Space direction="vertical" className="w-full" size="middle">
                                     {getManualInstallSteps(key as OSType).map((step, index) => (
                                         <div key={index}>
-                                            <Text strong className="block mb-2 text-gray-900 dark:text-slate-100">{step.title}</Text>
-                                            <pre className="m-0 overflow-auto text-sm bg-gray-50 dark:bg-slate-800 p-3 rounded text-gray-900 dark:text-slate-100">
+                                            <Text strong
+                                                  className="block mb-2 text-gray-900 dark:text-slate-100">{step.title}</Text>
+                                            <pre
+                                                className="m-0 overflow-auto text-sm bg-gray-50 dark:bg-slate-800 p-3 rounded text-gray-900 dark:text-slate-100">
                                                 <code>{step.command}</code>
                                             </pre>
                                             <Button
@@ -345,7 +436,7 @@ curl -L ${serverUrl}${config.downloadUrl} -o ${AGENT_NAME}`
                 ))}
             </Tabs>
         </Space>
-    ), [ApiChooser, selectedOS, osConfigs, getManualInstallSteps, copyToClipboard, selectedApiKey, ServiceHelper, ConfigHelper]);
+    ), [ServerUrlChecker, ApiChooser, selectedOS, osConfigs, getManualInstallSteps, copyToClipboard, selectedApiKey, ServiceHelper, ConfigHelper]);
 
     // 主选项卡配置
     const tabItems = useMemo(() => [

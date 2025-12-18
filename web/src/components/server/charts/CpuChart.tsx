@@ -28,7 +28,6 @@ export const CpuChart = ({agentId, timeRange}: CpuChartProps) => {
         if (!cpuSeries) return [];
 
         return cpuSeries.data.map((point) => ({
-            time: formatChartTime(point.timestamp, timeRange),
             usage: Number(point.value.toFixed(2)),
             timestamp: point.timestamp,
         }));
@@ -56,7 +55,11 @@ export const CpuChart = ({agentId, timeRange}: CpuChartProps) => {
                         </defs>
                         <CartesianGrid stroke="currentColor" strokeDasharray="4 4" className="stroke-cyan-900/30"/>
                         <XAxis
-                            dataKey="time"
+                            dataKey="timestamp"
+                            type="number"
+                            scale="time"
+                            domain={['dataMin', 'dataMax']}
+                            tickFormatter={(value) => formatChartTime(Number(value), timeRange)}
                             stroke="currentColor"
                             angle={-15}
                             textAnchor="end"
