@@ -16,10 +16,64 @@ import (
 	"time"
 
 	"github.com/dushixiang/pika/internal/models"
+	"github.com/dushixiang/pika/internal/utils"
 	"github.com/valyala/fasttemplate"
 	"go.uber.org/zap"
 	"gopkg.in/gomail.v2"
 )
+
+// AlertTypeMetadata 告警类型元数据
+type AlertTypeMetadata struct {
+	Name          string // 中文名称
+	ThresholdUnit string // 阈值单位
+	ValueUnit     string // 当前值单位
+}
+
+// 告警类型元数据映射
+var alertTypeMetadataMap = map[string]AlertTypeMetadata{
+	"cpu": {
+		Name:          "CPU告警",
+		ThresholdUnit: "%",
+		ValueUnit:     "%",
+	},
+	"memory": {
+		Name:          "内存告警",
+		ThresholdUnit: "%",
+		ValueUnit:     "%",
+	},
+	"disk": {
+		Name:          "磁盘告警",
+		ThresholdUnit: "%",
+		ValueUnit:     "%",
+	},
+	"network": {
+		Name:          "网络告警",
+		ThresholdUnit: "MB/s",
+		ValueUnit:     "MB/s",
+	},
+	"cert": {
+		Name:          "证书告警",
+		ThresholdUnit: "天",
+		ValueUnit:     "天",
+	},
+	"service": {
+		Name:          "服务告警",
+		ThresholdUnit: "秒",
+		ValueUnit:     "秒",
+	},
+	"agent_offline": {
+		Name:          "探针离线告警",
+		ThresholdUnit: "秒",
+		ValueUnit:     "秒",
+	},
+}
+
+// 告警级别图标映射
+var levelIconMap = map[string]string{
+	"info":     "ℹ️",
+	"warning":  "⚠️",
+	"critical": "🚨",
+}
 
 // Notifier 告警通知服务
 type Notifier struct {
@@ -46,49 +100,34 @@ func maskIPAddress(ip string) string {
 	return "****"
 }
 
+// getAlertTypeMetadata 获取告警类型元数据，如果不存在则返回默认值
+func getAlertTypeMetadata(alertType string) AlertTypeMetadata {
+	if metadata, ok := alertTypeMetadataMap[alertType]; ok {
+		return metadata
+	}
+	// 返回默认值
+	return AlertTypeMetadata{
+		Name:          "未知告警",
+		ThresholdUnit: "",
+		ValueUnit:     "",
+	}
+}
+
+// getLevelIcon 获取告警级别图标，如果不存在则返回默认值
+func getLevelIcon(level string) string {
+	if icon, ok := levelIconMap[level]; ok {
+		return icon
+	}
+	return "❓" // 未知级别的默认图标
+}
+
 // buildMessage 构建告警消息文本
 func (n *Notifier) buildMessage(agent *models.Agent, record *models.AlertRecord, maskIP bool) string {
-	var message string
+	// 获取告警级别图标
+	levelIcon := getLevelIcon(record.Level)
 
-	// 告警级别图标
-	levelIcon := ""
-	switch record.Level {
-	case "info":
-		levelIcon = "ℹ️"
-	case "warning":
-		levelIcon = "⚠️"
-	case "critical":
-		levelIcon = "🚨"
-	}
-
-	// 告警类型名称和单位
-	alertTypeName := ""
-	thresholdUnit := "%"
-	valueUnit := "%"
-	switch record.AlertType {
-	case "cpu":
-		alertTypeName = "CPU告警"
-	case "memory":
-		alertTypeName = "内存告警"
-	case "disk":
-		alertTypeName = "磁盘告警"
-	case "network":
-		alertTypeName = "网络告警"
-		thresholdUnit = "MB/s"
-		valueUnit = "MB/s"
-	case "cert":
-		alertTypeName = "证书告警"
-		thresholdUnit = "天"
-		valueUnit = "天"
-	case "service":
-		alertTypeName = "服务告警"
-		thresholdUnit = "秒"
-		valueUnit = "秒"
-	case "agent_offline":
-		alertTypeName = "探针离线告警"
-		thresholdUnit = "秒"
-		valueUnit = "秒"
-	}
+	// 获取告警类型元数据
+	metadata := getAlertTypeMetadata(record.AlertType)
 
 	// 处理 IP 地址显示
 	displayIP := agent.IP
@@ -96,76 +135,86 @@ func (n *Notifier) buildMessage(agent *models.Agent, record *models.AlertRecord,
 		displayIP = maskIPAddress(agent.IP)
 	}
 
-	if record.Status == "firing" {
-		// 告警触发消息
-		message = fmt.Sprintf(
-			"%s %s\n\n"+
-				"探针: %s (%s)\n"+
-				"主机: %s\n"+
-				"IP: %s\n"+
-				"告警类型: %s\n"+
-				"告警消息: %s\n"+
-				"阈值: %.2f%s\n"+
-				"当前值: %.2f%s\n"+
-				"触发时间: %s",
-			levelIcon,
-			alertTypeName,
-			agent.Name,
-			agent.ID,
-			agent.Hostname,
-			displayIP,
-			record.AlertType,
-			record.Message,
-			record.Threshold,
-			thresholdUnit,
-			record.ActualValue,
-			valueUnit,
-			time.Unix(record.FiredAt/1000, 0).Local().Format("2006-01-02 15:04:05"),
-		)
-	} else if record.Status == "resolved" {
-		// 计算持续时间
-		durationStr := ""
-		if record.FiredAt > 0 && record.ResolvedAt > record.FiredAt {
-			durationMs := record.ResolvedAt - record.FiredAt
-			durationSec := durationMs / 1000
-			if durationSec < 60 {
-				durationStr = fmt.Sprintf("%d秒", durationSec)
-			} else if durationSec < 3600 {
-				minutes := durationSec / 60
-				seconds := durationSec % 60
-				durationStr = fmt.Sprintf("%d分%d秒", minutes, seconds)
-			} else {
-				hours := durationSec / 3600
-				minutes := (durationSec % 3600) / 60
-				seconds := durationSec % 60
-				durationStr = fmt.Sprintf("%d时%d分%d秒", hours, minutes, seconds)
-			}
-		}
+	// 根据状态构建消息
+	switch record.Status {
+	case "firing":
+		return n.buildFiringMessage(agent, record, displayIP, levelIcon, metadata)
+	case "resolved":
+		return n.buildResolvedMessage(agent, record, displayIP, metadata)
+	default:
+		// 未知状态，返回基本信息
+		return fmt.Sprintf("⚠️ 未知告警状态: %s\n探针: %s (%s)", record.Status, agent.Name, agent.ID)
+	}
+}
 
-		// 告警恢复消息
-		message = fmt.Sprintf(
-			"✅ %s已恢复\n\n"+
-				"探针: %s (%s)\n"+
-				"主机: %s\n"+
-				"IP: %s\n"+
-				"告警类型: %s\n"+
-				"当前值: %.2f%s\n"+
-				"持续时间: %s\n"+
-				"恢复时间: %s",
-			alertTypeName,
-			agent.Name,
-			agent.ID,
-			agent.Hostname,
-			displayIP,
-			record.AlertType,
-			record.ActualValue,
-			valueUnit,
-			durationStr,
-			time.Unix(record.ResolvedAt/1000, 0).Local().Format("2006-01-02 15:04:05"),
-		)
+// buildFiringMessage 构建告警触发消息
+func (n *Notifier) buildFiringMessage(
+	agent *models.Agent,
+	record *models.AlertRecord,
+	displayIP string,
+	levelIcon string,
+	metadata AlertTypeMetadata,
+) string {
+	return fmt.Sprintf(
+		"%s %s\n\n"+
+			"探针: %s (%s)\n"+
+			"主机: %s\n"+
+			"IP: %s\n"+
+			"告警类型: %s\n"+
+			"告警消息: %s\n"+
+			"阈值: %.2f%s\n"+
+			"当前值: %.2f%s\n"+
+			"触发时间: %s",
+		levelIcon,
+		metadata.Name,
+		agent.Name,
+		agent.ID,
+		agent.Hostname,
+		displayIP,
+		record.AlertType,
+		record.Message,
+		record.Threshold,
+		metadata.ThresholdUnit,
+		record.ActualValue,
+		metadata.ValueUnit,
+		utils.FormatTimestamp(record.FiredAt),
+	)
+}
+
+// buildResolvedMessage 构建告警恢复消息
+func (n *Notifier) buildResolvedMessage(
+	agent *models.Agent,
+	record *models.AlertRecord,
+	displayIP string,
+	metadata AlertTypeMetadata,
+) string {
+	// 计算持续时间
+	var durationStr string
+	if record.FiredAt > 0 && record.ResolvedAt > record.FiredAt {
+		durationMs := record.ResolvedAt - record.FiredAt
+		durationStr = utils.FormatDuration(durationMs)
 	}
 
-	return message
+	return fmt.Sprintf(
+		"✅ %s已恢复\n\n"+
+			"探针: %s (%s)\n"+
+			"主机: %s\n"+
+			"IP: %s\n"+
+			"告警类型: %s\n"+
+			"当前值: %.2f%s\n"+
+			"持续时间: %s\n"+
+			"恢复时间: %s",
+		metadata.Name,
+		agent.Name,
+		agent.ID,
+		agent.Hostname,
+		displayIP,
+		record.AlertType,
+		record.ActualValue,
+		metadata.ValueUnit,
+		durationStr,
+		utils.FormatTimestamp(record.ResolvedAt),
+	)
 }
 
 // sendDingTalk 发送钉钉通知
@@ -291,12 +340,21 @@ func (n *Notifier) sendEmail(ctx context.Context, smtpHost string, smtpPort int,
 	return nil
 }
 
-// sendCustomWebhook 发送自定义Webhook
-func (n *Notifier) sendCustomWebhook(ctx context.Context, config map[string]interface{}, agent *models.Agent, record *models.AlertRecord, maskIP bool) error {
-	// 解析配置
+// webhookConfig Webhook 配置
+type webhookConfig struct {
+	URL          string
+	Method       string
+	Headers      map[string]string
+	BodyTemplate string
+	CustomBody   string
+}
+
+// parseWebhookConfig 解析 Webhook 配置
+func parseWebhookConfig(config map[string]interface{}) (*webhookConfig, error) {
+	// 解析 URL
 	webhookURL, ok := config["url"].(string)
 	if !ok || webhookURL == "" {
-		return fmt.Errorf("自定义Webhook配置缺少 url")
+		return nil, fmt.Errorf("自定义Webhook配置缺少 url")
 	}
 
 	// 获取请求方法，默认 POST
@@ -321,135 +379,133 @@ func (n *Notifier) sendCustomWebhook(ctx context.Context, config map[string]inte
 		bodyTemplate = bt
 	}
 
-	// 构建消息内容
-	message := n.buildMessage(agent, record, maskIP)
+	// 获取自定义请求体
+	customBody, _ := config["customBody"].(string)
 
-	// 根据模板类型构建请求体
-	var reqBody io.Reader
-	var contentType string
+	return &webhookConfig{
+		URL:          webhookURL,
+		Method:       method,
+		Headers:      headers,
+		BodyTemplate: bodyTemplate,
+		CustomBody:   customBody,
+	}, nil
+}
 
-	switch bodyTemplate {
-	case "json":
-		// JSON 格式
-		body := map[string]interface{}{
-			"msg_type": "text",
-			"text": map[string]string{
-				"content": message,
-			},
-			"agent": map[string]interface{}{
-				"id":       agent.ID,
-				"name":     agent.Name,
-				"hostname": agent.Hostname,
-				"ip":       agent.IP,
-			},
-			"alert": map[string]interface{}{
-				"type":        record.AlertType,
-				"level":       record.Level,
-				"status":      record.Status,
-				"message":     record.Message,
-				"threshold":   record.Threshold,
-				"actualValue": record.ActualValue,
-				"firedAt":     record.FiredAt,
-				"resolvedAt":  record.ResolvedAt,
-			},
-		}
-		data, err := json.Marshal(body)
-		if err != nil {
-			return fmt.Errorf("序列化 JSON 失败: %w", err)
-		}
-		reqBody = bytes.NewReader(data)
-		contentType = "application/json"
+// buildJSONBody 构建 JSON 格式的请求体
+func (n *Notifier) buildJSONBody(agent *models.Agent, record *models.AlertRecord, message string) (io.Reader, error) {
+	body := map[string]interface{}{
+		"msg_type": "text",
+		"text": map[string]string{
+			"content": message,
+		},
+		"agent": map[string]interface{}{
+			"id":       agent.ID,
+			"name":     agent.Name,
+			"hostname": agent.Hostname,
+			"ip":       agent.IP,
+		},
+		"alert": map[string]interface{}{
+			"type":        record.AlertType,
+			"level":       record.Level,
+			"status":      record.Status,
+			"message":     record.Message,
+			"threshold":   record.Threshold,
+			"actualValue": record.ActualValue,
+			"firedAt":     record.FiredAt,
+			"resolvedAt":  record.ResolvedAt,
+		},
+	}
+	data, err := json.Marshal(body)
+	if err != nil {
+		return nil, fmt.Errorf("序列化 JSON 失败: %w", err)
+	}
+	return bytes.NewReader(data), nil
+}
 
-	case "form":
-		// Form 表单格式
-		formData := url.Values{}
-		formData.Set("message", message)
-		formData.Set("agent_id", agent.ID)
-		formData.Set("agent_name", agent.Name)
-		formData.Set("agent_hostname", agent.Hostname)
-		formData.Set("agent_ip", agent.IP)
-		formData.Set("alert_type", record.AlertType)
-		formData.Set("alert_level", record.Level)
-		formData.Set("alert_status", record.Status)
-		formData.Set("alert_message", record.Message)
-		formData.Set("threshold", fmt.Sprintf("%.2f", record.Threshold))
-		formData.Set("actual_value", fmt.Sprintf("%.2f", record.ActualValue))
-		formData.Set("fired_at", fmt.Sprintf("%d", record.FiredAt))
-		if record.ResolvedAt > 0 {
-			formData.Set("resolved_at", fmt.Sprintf("%d", record.ResolvedAt))
-		}
-		reqBody = strings.NewReader(formData.Encode())
-		contentType = "application/x-www-form-urlencoded"
+// buildFormBody 构建 Form 表单格式的请求体
+func (n *Notifier) buildFormBody(agent *models.Agent, record *models.AlertRecord, message string) io.Reader {
+	formData := url.Values{}
+	formData.Set("message", message)
+	formData.Set("agent_id", agent.ID)
+	formData.Set("agent_name", agent.Name)
+	formData.Set("agent_hostname", agent.Hostname)
+	formData.Set("agent_ip", agent.IP)
+	formData.Set("alert_type", record.AlertType)
+	formData.Set("alert_level", record.Level)
+	formData.Set("alert_status", record.Status)
+	formData.Set("alert_message", record.Message)
+	formData.Set("threshold", fmt.Sprintf("%.2f", record.Threshold))
+	formData.Set("actual_value", fmt.Sprintf("%.2f", record.ActualValue))
+	formData.Set("fired_at", fmt.Sprintf("%d", record.FiredAt))
+	if record.ResolvedAt > 0 {
+		formData.Set("resolved_at", fmt.Sprintf("%d", record.ResolvedAt))
+	}
+	return strings.NewReader(formData.Encode())
+}
 
-	case "custom":
-		// 自定义模板，支持变量替换
-		customBody, ok := config["customBody"].(string)
-		if !ok || customBody == "" {
-			return fmt.Errorf("使用 custom 模板时必须提供 customBody")
-		}
-
-		// 使用 fasttemplate 进行变量替换
-		t := fasttemplate.New(customBody, "{{", "}}")
-		escape := func(s string) string {
-			b, _ := json.Marshal(s)
-			// json.Marshal 会返回带双引号的字符串，例如 "hello\nworld"
-			// 模板中不需要外层双引号，所以去掉
-			return string(b[1 : len(b)-1])
-		}
-
-		bodyStr := t.ExecuteFuncString(func(w io.Writer, tag string) (int, error) {
-			var v string
-
-			switch tag {
-			case "message":
-				v = message
-			case "agent.id":
-				v = agent.ID
-			case "agent.name":
-				v = agent.Name
-			case "agent.hostname":
-				v = agent.Hostname
-			case "agent.ip":
-				v = agent.IP
-			case "alert.type":
-				v = record.AlertType
-			case "alert.level":
-				v = record.Level
-			case "alert.status":
-				v = record.Status
-			case "alert.message":
-				v = record.Message
-			case "alert.threshold":
-				v = fmt.Sprintf("%.2f", record.Threshold)
-			case "alert.actualValue":
-				v = fmt.Sprintf("%.2f", record.ActualValue)
-			case "alert.firedAt":
-				// 格式化的触发时间 (使用系统时区，Docker 中设置为 Asia/Shanghai)
-				v = time.Unix(record.FiredAt/1000, 0).Local().Format("2006-01-02 15:04:05")
-			case "alert.resolvedAt":
-				// 格式化的恢复时间 (使用系统时区，Docker 中设置为 Asia/Shanghai)
-				if record.ResolvedAt > 0 {
-					v = time.Unix(record.ResolvedAt/1000, 0).Local().Format("2006-01-02 15:04:05")
-				} else {
-					v = ""
-				}
-			default:
-				return w.Write([]byte("{{" + tag + "}}"))
-			}
-
-			// 写入 JSON 安全转义后的值
-			return w.Write([]byte(escape(v)))
-		})
-		n.logger.Sugar().Debugf("自定义Webhook请求体: %s", bodyStr)
-		reqBody = strings.NewReader(bodyStr)
-		contentType = "text/plain"
-
-	default:
-		return fmt.Errorf("不支持的 bodyTemplate: %s", bodyTemplate)
+// buildCustomBody 构建自定义模板格式的请求体
+func (n *Notifier) buildCustomBody(agent *models.Agent, record *models.AlertRecord, message, customBody string) (io.Reader, error) {
+	if customBody == "" {
+		return nil, fmt.Errorf("使用 custom 模板时必须提供 customBody")
 	}
 
+	// 使用 fasttemplate 进行变量替换
+	t := fasttemplate.New(customBody, "{{", "}}")
+	escape := func(s string) string {
+		b, _ := json.Marshal(s)
+		// json.Marshal 会返回带双引号的字符串，例如 "hello\nworld"
+		// 模板中不需要外层双引号，所以去掉
+		return string(b[1 : len(b)-1])
+	}
+
+	bodyStr := t.ExecuteFuncString(func(w io.Writer, tag string) (int, error) {
+		var v string
+
+		switch tag {
+		case "message":
+			v = message
+		case "agent.id":
+			v = agent.ID
+		case "agent.name":
+			v = agent.Name
+		case "agent.hostname":
+			v = agent.Hostname
+		case "agent.ip":
+			v = agent.IP
+		case "alert.type":
+			v = record.AlertType
+		case "alert.level":
+			v = record.Level
+		case "alert.status":
+			v = record.Status
+		case "alert.message":
+			v = record.Message
+		case "alert.threshold":
+			v = fmt.Sprintf("%.2f", record.Threshold)
+		case "alert.actualValue":
+			v = fmt.Sprintf("%.2f", record.ActualValue)
+		case "alert.firedAt":
+			// 格式化的触发时间 (使用系统时区，Docker 中设置为 Asia/Shanghai)
+			v = utils.FormatTimestamp(record.FiredAt)
+		case "alert.resolvedAt":
+			// 格式化的恢复时间 (使用系统时区，Docker 中设置为 Asia/Shanghai)
+			v = utils.FormatTimestamp(record.ResolvedAt)
+		default:
+			return w.Write([]byte("{{" + tag + "}}"))
+		}
+
+		// 写入 JSON 安全转义后的值
+		return w.Write([]byte(escape(v)))
+	})
+
+	n.logger.Sugar().Debugf("自定义Webhook请求体: %s", bodyStr)
+	return strings.NewReader(bodyStr), nil
+}
+
+// sendHTTPRequest 发送 HTTP 请求
+func (n *Notifier) sendHTTPRequest(ctx context.Context, method, webhookURL string, body io.Reader, headers map[string]string, contentType string) error {
 	// 创建请求
-	req, err := http.NewRequestWithContext(ctx, method, webhookURL, reqBody)
+	req, err := http.NewRequestWithContext(ctx, method, webhookURL, body)
 	if err != nil {
 		return fmt.Errorf("创建请求失败: %w", err)
 	}
@@ -487,6 +543,48 @@ func (n *Notifier) sendCustomWebhook(ctx context.Context, config map[string]inte
 	)
 
 	return nil
+}
+
+// sendCustomWebhook 发送自定义Webhook
+func (n *Notifier) sendCustomWebhook(ctx context.Context, config map[string]interface{}, agent *models.Agent, record *models.AlertRecord, maskIP bool) error {
+	// 解析配置
+	cfg, err := parseWebhookConfig(config)
+	if err != nil {
+		return err
+	}
+
+	// 构建消息内容
+	message := n.buildMessage(agent, record, maskIP)
+
+	// 根据模板类型构建请求体
+	var reqBody io.Reader
+	var contentType string
+
+	switch cfg.BodyTemplate {
+	case "json":
+		reqBody, err = n.buildJSONBody(agent, record, message)
+		if err != nil {
+			return err
+		}
+		contentType = "application/json"
+
+	case "form":
+		reqBody = n.buildFormBody(agent, record, message)
+		contentType = "application/x-www-form-urlencoded"
+
+	case "custom":
+		reqBody, err = n.buildCustomBody(agent, record, message, cfg.CustomBody)
+		if err != nil {
+			return err
+		}
+		contentType = "text/plain"
+
+	default:
+		return fmt.Errorf("不支持的 bodyTemplate: %s", cfg.BodyTemplate)
+	}
+
+	// 发送 HTTP 请求
+	return n.sendHTTPRequest(ctx, cfg.Method, cfg.URL, reqBody, cfg.Headers, contentType)
 }
 
 // sendJSONRequest 发送JSON请求

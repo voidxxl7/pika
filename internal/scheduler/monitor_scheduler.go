@@ -186,10 +186,10 @@ func (s *MonitorScheduler) executeTask(monitorID string) {
 		return
 	}
 
-	s.logger.Debug("执行监控任务",
-		zap.String("taskID", monitorID),
-		zap.String("taskName", monitor.Name),
-		zap.Int("interval", monitor.Interval))
+	//s.logger.Debug("执行监控任务",
+	//	zap.String("taskID", monitorID),
+	//	zap.String("taskName", monitor.Name),
+	//	zap.Int("interval", monitor.Interval))
 
 	// 发送监控任务到探针
 	if err := s.monitorService.SendMonitorTaskToAgents(s.ctx, monitor); err != nil {

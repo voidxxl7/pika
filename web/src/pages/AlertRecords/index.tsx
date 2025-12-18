@@ -57,6 +57,32 @@ const AlertRecordList = () => {
         return <Tag color={statusConfig.color}>{statusConfig.text}</Tag>;
     };
 
+    // 格式化持续时间
+    const formatDuration = (firedAt: number, resolvedAt: number | null, status: string) => {
+        // 如果告警还在进行中，返回 "-"
+        if (status === 'firing' || !resolvedAt || resolvedAt <= firedAt) {
+            return '-';
+        }
+
+        const durationMs = resolvedAt - firedAt;
+        const durationSec = Math.floor(durationMs / 1000);
+
+        if (durationSec < 60) {
+            return `${durationSec}秒`;
+        }
+
+        if (durationSec < 3600) {
+            const minutes = Math.floor(durationSec / 60);
+            const seconds = durationSec % 60;
+            return `${minutes}分${seconds}秒`;
+        }
+
+        const hours = Math.floor(durationSec / 3600);
+        const minutes = Math.floor((durationSec % 3600) / 60);
+        const seconds = durationSec % 60;
+        return `${hours}时${minutes}分${seconds}秒`;
+    };
+
     // 计算探针选项
     const agentOptions = agentsData?.items?.map((agent) => ({
         label: agent.name || agent.id,
@@ -175,6 +201,13 @@ const AlertRecordList = () => {
             width: 180,
             render: (_, record) =>
                 record.resolvedAt ? dayjs(record.resolvedAt).format('YYYY-MM-DD HH:mm:ss') : '-',
+            search: false,
+        },
+        {
+            title: '持续时间',
+            dataIndex: 'duration',
+            width: 130,
+            render: (_, record) => formatDuration(record.firedAt, record.resolvedAt, record.status),
             search: false,
         },
     ];
