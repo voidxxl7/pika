@@ -8,13 +8,12 @@ import {
     ArrowUp,
     Clock,
     Cpu,
-    Filter,
+    Filter, Globe,
     HardDrive,
     LinkIcon,
     Loader2,
     MemoryStick,
     Network,
-    Server,
     Thermometer,
     UnlinkIcon
 } from 'lucide-react';
@@ -22,7 +21,7 @@ import {getPublicTags, listAgents} from '@/api/agent.ts';
 import type {Agent, LatestMetrics} from '@/types';
 import {cn} from '@/lib/utils';
 import CompactResourceBar from "@/components/CompactResourceBar.tsx";
-import StatCard from "@/components/StatCard.tsx";
+import StatBlock from "@/components/StatBlock.tsx";
 import ServerCard from "@/components/ServerCard.tsx";
 import NetworkStatCard from "@/components/NetworkStatCard.tsx";
 import {formatBytes, formatSpeed, formatUptime} from "@/utils/util.ts";
@@ -170,29 +169,31 @@ const ServerList = () => {
         <div className="mx-auto max-w-7xl px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-6">
             {/* 统计卡片 */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
-                <StatCard
+                <StatBlock
                     title="设备总数"
-                    value={stats.total}
-                    icon={Server}
-                    color="gray"
+                    value={stats?.total}
+                    icon={Globe}
+                    color="cyan"
                 />
-                <StatCard
+                <StatBlock
                     title="在线设备"
-                    value={stats.online}
+                    value={stats?.online}
                     icon={LinkIcon}
                     color="emerald"
+                    glow
                 />
-                <StatCard
+                <StatBlock
                     title="离线设备"
                     value={stats.offline}
                     icon={UnlinkIcon}
                     color="rose"
+                    alert={stats?.offline > 0}
                 />
                 <NetworkStatCard
-                    uploadRate={stats.uploadRate}
-                    downloadRate={stats.downloadRate}
-                    uploadTotal={stats.uploadTotal}
-                    downloadTotal={stats.downloadTotal}
+                    uploadRate={stats?.uploadRate}
+                    downloadRate={stats?.downloadRate}
+                    uploadTotal={stats?.uploadTotal}
+                    downloadTotal={stats?.downloadTotal}
                 />
             </div>
 
@@ -336,13 +337,16 @@ const ServerList = () => {
                                                         color="bg-emerald-500"
                                                     />
                                                     {temperatures.length > 0 && (
-                                                        <div className="flex items-center gap-2 mt-1 text-xs font-mono flex-wrap">
+                                                        <div
+                                                            className="flex items-center gap-2 mt-1 text-xs font-mono flex-wrap">
                                                             <Thermometer className="w-3 h-3 text-orange-400"/>
                                                             {temperatures.map((temp, index) => (
                                                                 <span key={index} className="flex items-center gap-1">
-                                                                    <span className="text-orange-400">{temp.temperature?.toFixed(1)}°C</span>
+                                                                    <span
+                                                                        className="text-orange-400">{temp.temperature?.toFixed(1)}°C</span>
                                                                     <span className="text-cyan-500">{temp.type}</span>
-                                                                    {index < temperatures.length - 1 && <span className="text-cyan-900">|</span>}
+                                                                    {index < temperatures.length - 1 &&
+                                                                        <span className="text-cyan-900">|</span>}
                                                                 </span>
                                                             ))}
                                                         </div>
@@ -390,7 +394,8 @@ const ServerList = () => {
                                                 <div className="flex flex-col gap-1.5">
                                                     <div className="flex items-center gap-2">
                                                         <Network className="w-3 h-3 text-emerald-400"/>
-                                                        <span className="text-emerald-400">{netConn.established || 0}</span>
+                                                        <span
+                                                            className="text-emerald-400">{netConn.established || 0}</span>
                                                         <span className="text-cyan-500">已建立</span>
                                                     </div>
                                                     <div className="flex items-center gap-2">

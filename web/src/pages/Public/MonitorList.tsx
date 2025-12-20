@@ -1,11 +1,22 @@
 import {useEffect, useMemo, useState} from 'react';
 import {Link, useNavigate} from 'react-router-dom';
 import {useQuery} from '@tanstack/react-query';
-import {AlertCircle, BarChart3, CheckCircle2, Clock, Loader2, Maximize2, Search, Server, Shield} from 'lucide-react';
+import {
+    AlertCircle, AlertTriangle,
+    BarChart3,
+    CheckCircle2,
+    Clock,
+    Globe,
+    Loader2,
+    Maximize2,
+    Search,
+    Server,
+    Shield, Zap
+} from 'lucide-react';
 import {getPublicMonitors} from '@/api/monitor.ts';
 import type {PublicMonitor} from '@/types';
 import {cn} from '@/lib/utils';
-import StatCard from "@/components/StatCard.tsx";
+import StatBlock from "@/components/StatBlock.tsx";
 import type {DisplayMode, FilterStatus} from "@/components/monitor";
 import MonitorCard from "@/components/monitor/MonitorCard.tsx";
 
@@ -100,28 +111,31 @@ const MonitorList = () => {
         <div className="mx-auto max-w-7xl px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-6">
             {/* 统计卡片 */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
-                <StatCard
+                <StatBlock
                     title="监控服务总数"
                     value={stats?.total}
-                    icon={Server}
-                    color="gray"
+                    icon={Globe}
+                    color="cyan"
                 />
-                <StatCard
+                <StatBlock
                     title="系统正常"
                     value={stats?.online}
                     icon={CheckCircle2}
                     color="emerald"
+                    glow
                 />
-                <StatCard
+                <StatBlock
                     title="异常服务"
                     value={stats?.issues}
-                    icon={AlertCircle}
+                    icon={AlertTriangle}
                     color="rose"
+                    alert={stats?.issues > 0}
                 />
-                <StatCard
+                <StatBlock
                     title="全局平均延迟"
-                    value={`${stats?.avgLatency}ms`}
-                    icon={Clock}
+                    value={stats?.avgLatency}
+                    unit={'ms'}
+                    icon={Zap}
                     color="blue"
                 />
             </div>
