@@ -165,6 +165,9 @@ const ServerList = () => {
         displayAgents = agents.filter(a => a.tags?.map(t => t.toUpperCase()).includes(selectedTag));
     }
 
+    // debug
+    // displayAgents = Array.from({length:10}, ()=>displayAgents).flat();
+
     return (
         <div className="mx-auto max-w-7xl px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-6">
             {/* 统计卡片 */}
@@ -254,7 +257,7 @@ const ServerList = () => {
                                 <th className="p-5 font-bold w-[200px]">Meta / Tags</th>
                             </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-100 dark:divide-cyan-900/20">
+                            <tbody className="divide-y divide-slate-200 dark:divide-cyan-900/50">
                             {displayAgents.map(server => {
                                 const isOnline = server.status === 1;
                                 const cpuUsage = server.metrics?.cpu?.usagePercent ?? 0;
@@ -444,7 +447,7 @@ const ServerList = () => {
                     </div>
 
                     {/* 移动端卡片布局 */}
-                    <div className="md:hidden space-y-3">
+                    <div className="md:hidden flex flex-col gap-2">
                         {displayAgents.map(server => (
                             <ServerCard
                                 key={server.id}

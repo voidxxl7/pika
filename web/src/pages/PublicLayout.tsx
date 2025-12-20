@@ -4,68 +4,64 @@ import PublicFooter from '../components/PublicFooter';
 import {ThemeProvider} from '../contexts/ThemeContext';
 
 const globalStyles = `
-    /* 防止滚动时出现白色背景 */
-    html, body {
-        background-color: #f0f2f5;
-    }
+    /* 1. 定义变量：默认亮色模式 */
+:root {
+    --bg-color: #f0f2f5;
+    --sb-track-color: #e5e7eb;
+    --sb-thumb-color: #9ca3af;
+    --sb-thumb-hover: #6b7280;
+    --sb-thumb-border: #d1d5db;
+    --sb-corner: #f0f2f5;
+}
 
-    html.dark, body.dark {
-        background-color: #05050a;
-    }
+/* 2. 定义暗色模式下的变量值 */
+/* 只要 html 标签上有 class="dark" 就会生效 */
+html.dark {
+    --bg-color: #05050a;
+    --sb-track-color: #0a0a0f;
+    --sb-thumb-color: #1e1e28;
+    --sb-thumb-hover: #2a2a38;
+    --sb-thumb-border: #2a2a35;
+    --sb-corner: #05050a;
+}
 
-    /* 整体滚动条 - 亮色模式 */
-    ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-    }
+/* 3. 应用背景色 */
+body {
+    background-color: var(--bg-color);
+    /* 平滑过渡效果，可选 */
+    transition: background-color 0.3s ease;
+}
 
-    ::-webkit-scrollbar-track {
-        background: #e5e7eb;
-        border-radius: 4px;
-    }
+/* 4. Webkit 滚动条 (Chrome, Edge, Safari) - 只写一次 */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
 
-    ::-webkit-scrollbar-thumb {
-        background: #9ca3af;
-        border-radius: 4px;
-        border: 1px solid #d1d5db;
-    }
+::-webkit-scrollbar-track {
+    background: var(--sb-track-color);
+    border-radius: 4px;
+}
 
-    ::-webkit-scrollbar-thumb:hover {
-        background: #6b7280;
-    }
+::-webkit-scrollbar-thumb {
+    background: var(--sb-thumb-color);
+    border-radius: 4px;
+    border: 1px solid var(--sb-thumb-border);
+}
 
-    ::-webkit-scrollbar-corner {
-        background: #f0f2f5;
-    }
+::-webkit-scrollbar-thumb:hover {
+    background: var(--sb-thumb-hover);
+}
 
-    /* Firefox 滚动条 - 亮色模式 */
-    * {
-        scrollbar-width: thin;
-        scrollbar-color: #9ca3af #e5e7eb;
-    }
+::-webkit-scrollbar-corner {
+    background: var(--sb-corner);
+}
 
-    /* 暗色模式滚动条 */
-    .dark ::-webkit-scrollbar-track {
-        background: #0a0a0f;
-    }
-
-    .dark ::-webkit-scrollbar-thumb {
-        background: #1e1e28;
-        border: 1px solid #2a2a35;
-    }
-
-    .dark ::-webkit-scrollbar-thumb:hover {
-        background: #2a2a38;
-    }
-
-    .dark ::-webkit-scrollbar-corner {
-        background: #05050a;
-    }
-
-    /* Firefox 滚动条 - 暗色模式 */
-    .dark * {
-        scrollbar-color: #1e1e28 #0a0a0f;
-    }
+/* 5. Firefox 滚动条 - 只写一次 */
+html {
+    scrollbar-width: thin;
+    scrollbar-color: var(--sb-thumb-color) var(--sb-track-color);
+}
 `;
 
 const PublicLayout = () => {
